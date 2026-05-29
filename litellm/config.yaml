@@ -1,0 +1,67 @@
+model_list:
+  # Primary model — OpenAI
+  - model_name: gpt-4o-mini
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
+      max_tokens: 4096
+      temperature: 0
+
+  # Fallback model — Anthropic Claude Haiku 4.5 (different model_name so the
+  # router never treats it as part of the same load-balanced pool as gpt-4o-mini)
+  - model_name: claude-haiku-fallback
+    litellm_params:
+      model: anthropic/claude-haiku-4-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+      max_tokens: 4096
+      temperature: 0
+
+  # Embedding model for long-term memory
+  - model_name: text-embedding-3-small
+    litellm_params:
+      model: openai/text-embedding-3-small
+      api_key: os.environ/OPENAI_API_KEY
+
+router_settings:
+  routing_strategy: latency-based-routing
+  num_retries: 3
+  retry_after: 5
+  allowed_fails: 2
+  cooldown_time: 60
+  fallbacks:
+    - gpt-4o-mini:
+        - claude-haiku-fallback
+
+cache:
+  type: redis
+  host: redis
+  port: 6379
+  ttl: 600
+  supported_call_types:
+    - acompletion
+    - completion
+    - embedding
+    - aembedding
+
+litellm_settings:
+  # Emit OpenTelemetry spans for every LLM call
+  success_callback: ["otel"]
+  failure_callback: ["otel"]
+  service_callback: ["prometheus_system"]
+  callbacks: ["otel"]
+  # HTTP OTLP receiver on the OTel Collector (port 4318).
+  # Port 4317 is gRPC-only; LiteLLM uses HTTP OTLP so must target 4318.
+  otel_endpoint: "http://otel-collector:4318"
+  drop_params: true
+  # Allow LiteLLM to inject a dummy user message when the Anthropic fallback
+  # receives a system-only conversation (Anthropic requires >=1 non-system turn)
+  modify_params: true
+
+general_settings:
+  database_url: os.environ/DATABASE_URL
+  master_key: os.environ/LITELLM_MASTER_KEY
+  store_model_in_db: true
+  disable_reset_budget: false
+  # Allow Prometheus to scrape /metrics without auth so the scraper in
+  # prometheus.yml does not need to embed the master key.
+  require_auth_for_metrics_endpoint: false

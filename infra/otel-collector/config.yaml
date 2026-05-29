@@ -1,0 +1,49 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+  memory_limiter:
+    limit_mib: 256
+    check_interval: 1s
+
+exporters:
+  # Traces → Grafana Tempo (gRPC OTLP receiver, port 4317)
+  otlp/tempo:
+    endpoint: grafana-tempo:4317
+    tls:
+      insecure: true
+
+  # Metrics → Prometheus (remote write)
+  prometheusremotewrite:
+    endpoint: http://prometheus:9090/api/v1/write
+    tls:
+      insecure: true
+
+  # Metrics exposition for Prometheus scrape (self-scraped)
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: pentest_agent
+
+  # Debug logging (remove in production)
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/tempo, debug]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus, prometheusremotewrite]

@@ -1,0 +1,17 @@
+services:
+  target-app:
+    build: .
+    container_name: pentest-challenge-target
+    ports:
+      - "8000:8000"
+    environment:
+      # Token lifetime in seconds (default 300)
+      TOKEN_TTL_SECONDS: "300"
+      # Number of failed logins before lockout (default 3)
+      MAX_FAILED_LOGINS: "3"
+      # Lockout duration in seconds (default 30)
+      LOCKOUT_SECONDS: "30"
+      # Probability (0.0 - 1.0) of returning 503 on any request.
+      # Set to e.g. 0.15 to test the agent's retry/error handling.
+      FLAKY_RATE: "0.0"
+    restart: unless-stopped

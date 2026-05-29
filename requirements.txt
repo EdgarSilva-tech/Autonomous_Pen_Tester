@@ -1,0 +1,53 @@
+# ── Core agent framework ──────────────────────────────────────────────────
+# langchain-mcp-adapters 0.1.x requires langchain-core>=0.3.36, which forces
+# the entire langchain ecosystem onto the 0.3.x line.
+langchain>=0.3.0,<0.4
+langchain-core>=0.3.36,<0.4
+langchain-openai>=0.2.0,<0.4
+langgraph>=0.2.39,<0.4
+langgraph-checkpoint-postgres>=2.0.0,<3
+
+# ── AI Gateway ────────────────────────────────────────────────────────────
+litellm>=1.44.22,<2
+
+# ── MCP ───────────────────────────────────────────────────────────────────
+langchain-mcp-adapters>=0.1.3,<0.3
+mcp>=1.3.0,<2
+
+# ── HTTP client ───────────────────────────────────────────────────────────
+httpx>=0.27.0,<1
+
+# ── Frontend scraping (static layer — Playwright lives in scraper/ service) ──
+beautifulsoup4>=4.12.0,<5
+lxml>=5.2.0,<6
+
+# ── Long-term memory ──────────────────────────────────────────────────────
+langchain-postgres>=0.0.12,<1
+pgvector>=0.2.5,<1
+asyncpg>=0.29.0,<1
+psycopg[binary,pool]>=3.2.0,<4
+
+# ── Observability ─────────────────────────────────────────────────────────
+# instrumentation-langchain>=0.49b0 requires opentelemetry-api>=1.28.0;
+# sdk, exporter and api must all stay on the same minor version.
+opentelemetry-sdk>=1.28.0,<2
+opentelemetry-exporter-otlp-proto-grpc>=1.28.0,<2
+opentelemetry-instrumentation-langchain>=0.49b0,<2  # instrument() failure is caught gracefully
+opentelemetry-instrumentation-httpx>=0.49b0,<2
+
+# ── Structured logging ────────────────────────────────────────────────────
+structlog>=24.2.0,<26
+
+# ── Validation ────────────────────────────────────────────────────────────
+pydantic>=2.8.2,<3
+pydantic-settings>=2.5.2,<3
+
+# ── CLI ───────────────────────────────────────────────────────────────────
+click>=8.1.7,<9
+
+# ── Testing ───────────────────────────────────────────────────────────────
+pytest>=8.3.0,<9
+pytest-asyncio>=0.23.0,<1
+respx>=0.21.0,<1
+fastapi==0.115.0
+starlette>=0.37.2,<0.39

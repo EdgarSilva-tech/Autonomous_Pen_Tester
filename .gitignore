@@ -1,0 +1,117 @@
+# ── Secrets & local env ───────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# API keys / credentials (never commit)
+*.pem
+*.key
+credentials.json
+secrets.json
+
+# ── Agent run artifacts (generated at runtime) ────────────────────────────────
+output/*
+!output/.gitkeep
+
+# Downloaded traces / ad-hoc exports
+trace*.json
+*-trace.json
+fingerprint.json
+openapi-fingerprint.json
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Test / type / lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# ── Docker (local overrides only — keep docker-compose.yml tracked) ─────────────
+docker-compose.override.yml
+docker-compose.*.local.yml
+
+# ── IDE & editors ─────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+*.sublime-project
+*.sublime-workspace
+
+# Cursor (keep rules/skills if you add them under .cursor/ intentionally)
+.cursor/*
+!.cursor/rules/
+!.cursor/skills/
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ── Logs & temp files ─────────────────────────────────────────────────────────
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+*.bak
+
+# ── Playwright (if installed locally outside Docker) ──────────────────────────
+playwright-report/
+test-results/
+.playwright/
+
+# ── Database dumps (local exports from pgAdmin etc.) ─────────────────────────
+*.sql.gz
+*.dump
+pgdata/
