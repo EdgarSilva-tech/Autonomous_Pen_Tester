@@ -49,39 +49,51 @@ from agent.nodes.summarize import should_summarise, summarize_node
 from agent.prompts import build_system_prompt
 from agent.report import assemble_report, emit_report
 from agent.state import PentestState
-from agent.tools import HTTP_TOOLS, set_base_url
+from agent.tools import HTTP_TOOLS, reset_session, set_base_url
 
 log = get_logger(__name__)
 
-# ── LLM factory ───────────────────────────────────────────────────────────────
+
+# ── LLM factory ──────────────────────────────────────────────────────────────
 
 def _build_llm(tools: list[BaseTool]) -> ChatOpenAI:
-    """Return an LLM bound to the tool schemas, routed via LiteLLM proxy."""
+    """Return an LLM bound to tool schemas, routed via LiteLLM proxy."""
     llm = ChatOpenAI(
         model="gpt-4o-mini",
-        openai_api_base=os.getenv("LITELLM_BASE_URL", "http://localhost:4000"),
-        openai_api_key=os.getenv("LITELLM_API_KEY", "sk-pentest-master"),
+        openai_api_base=os.getenv(
+            "LITELLM_BASE_URL", "http://localhost:4000"
+        ),
+        openai_api_key=os.getenv(
+            "LITELLM_API_KEY", "sk-pentest-master"
+        ),
         temperature=0,
         max_retries=0,
     )
     return llm.bind_tools(tools)
 
 
-# ── Checkpointer ──────────────────────────────────────────────────────────────
+# ── Checkpointer ─────────────────────────────────────────────────────────────
 
 async def _get_checkpointer():
     db_uri = os.getenv("LANGGRAPH_DB_URI")
     if not db_uri:
-        log.warning("graph.checkpointer_disabled", reason="LANGGRAPH_DB_URI not set")
+        log.warning(
+            "graph.checkpointer_disabled",
+            reason="LANGGRAPH_DB_URI not set",
+        )
         return None
     try:
-        # langgraph-checkpoint-postgres>=2.0 expects a psycopg3 AsyncConnectionPool.
-        # AsyncPostgresSaver.from_conn_string() is now an async context manager and
-        # cannot be called with .setup() directly — use the pool approach instead.
+        # langgraph-checkpoint-postgres>=2.0 expects a psycopg3
+        # AsyncConnectionPool. AsyncPostgresSaver.from_conn_string() is
+        # now an async context manager — use the pool approach instead.
         from psycopg_pool import AsyncConnectionPool  # type: ignore
-        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver  # type: ignore
+        from langgraph.checkpoint.postgres.aio import (  # type: ignore
+            AsyncPostgresSaver,
+        )
 
-        psycopg_uri = db_uri.replace("postgresql+asyncpg://", "postgresql://")
+        psycopg_uri = db_uri.replace(
+            "postgresql+asyncpg://", "postgresql://"
+        )
         pool = AsyncConnectionPool(
             conninfo=psycopg_uri,
             kwargs={"autocommit": True},
@@ -90,14 +102,16 @@ async def _get_checkpointer():
         await pool.open()
         checkpointer = AsyncPostgresSaver(pool)
         await checkpointer.setup()
-        log.info("graph.checkpointer_ready", uri=db_uri.split("@")[-1])
+        log.info(
+            "graph.checkpointer_ready", uri=db_uri.split("@")[-1]
+        )
         return checkpointer
     except Exception as exc:
         log.warning("graph.checkpointer_failed", error=str(exc))
         return None
 
 
-# ── Node: llm_node ────────────────────────────────────────────────────────────
+# ── Node: llm_node ───────────────────────────────────────────────────────────
 
 def _make_llm_node(llm_with_tools):
     """Return the llm_node function closed over the bound LLM."""
@@ -115,21 +129,25 @@ def _make_llm_node(llm_with_tools):
                 drift_context=state.get("drift_context"),
                 openapi_context=state.get("openapi_context"),
             )
-            messages = [SystemMessage(content=system_prompt)] + list(messages)
+            messages = (
+                [SystemMessage(content=system_prompt)] + list(messages)
+            )
 
         log.debug("llm_node.invoke", message_count=len(messages))
         response: AIMessage = await llm_with_tools.ainvoke(messages)
         log.info(
             "llm_node.response",
             has_tool_calls=bool(getattr(response, "tool_calls", None)),
-            tool_names=[tc["name"] for tc in (response.tool_calls or [])],
+            tool_names=[
+                tc["name"] for tc in (response.tool_calls or [])
+            ],
         )
         return {"messages": [response]}
 
     return llm_node
 
 
-# ── Edge: after llm_node ──────────────────────────────────────────────────────
+# ── Edge: after llm_node ─────────────────────────────────────────────────────
 
 def route_after_llm(state: PentestState) -> str:
     """Route to tools if the LLM produced tool calls; else evaluate."""
@@ -139,7 +157,7 @@ def route_after_llm(state: PentestState) -> str:
     return "evaluate_node"
 
 
-# ── Node: report_node ─────────────────────────────────────────────────────────
+# ── Node: report_node ────────────────────────────────────────────────────────
 
 _start_time: float = 0.0
 
@@ -148,7 +166,6 @@ async def report_node(state: PentestState) -> dict[str, Any]:
     elapsed_ms = int((time.monotonic() - _start_time) * 1000)
     report = assemble_report(state, elapsed_ms=elapsed_ms)
 
-    # Attach evaluation result if present
     if state.get("eval_result"):
         from agent.state import EvaluationResult
         report.evaluation = EvaluationResult(**state["eval_result"])
@@ -165,6 +182,7 @@ async def build_graph():
     _start_time = time.monotonic()
 
     set_base_url(os.getenv("TARGET_BASE_URL", "http://localhost:8000"))
+    reset_session()
 
     mcp_tools = await get_mcp_tools()
     all_tools: list[BaseTool] = HTTP_TOOLS + mcp_tools
@@ -181,14 +199,14 @@ async def build_graph():
 
     graph = StateGraph(PentestState)
 
-    # ── Register nodes ────────────────────────────────────────────────────────
+    # ── Register nodes ───────────────────────────────────────────────────────
     graph.add_node("llm_node",       _make_llm_node(llm_with_tools))
     graph.add_node("tools_node",     ToolNode(all_tools))
     graph.add_node("summarize_node", summarize_node)
     graph.add_node("evaluate_node",  evaluate_node)
     graph.add_node("report_node",    report_node)
 
-    # ── Edges ─────────────────────────────────────────────────────────────────
+    # ── Edges ────────────────────────────────────────────────────────────────
     graph.add_edge(START, "llm_node")
 
     # After LLM: tool calls → tools_node; final answer → evaluate_node

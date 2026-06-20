@@ -13,10 +13,11 @@ NEW_PASSWORD = "NewPass456!"
 
 @pytest.fixture(autouse=True)
 def set_test_base_url(monkeypatch):
-    """Point all HTTP tools at the mock base URL."""
+    """Point all HTTP tools at the mock base URL and reset session state."""
     monkeypatch.setenv("TARGET_BASE_URL", BASE_URL)
-    from agent.tools import set_base_url
+    from agent.tools import reset_session, set_base_url
     set_base_url(BASE_URL)
+    reset_session()
 
 
 @pytest.fixture

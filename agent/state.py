@@ -9,7 +9,7 @@ from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
 
 
-# ── Per-step result ───────────────────────────────────────────────────────────
+# ── Per-step result ──────────────────────────────────────────────────────────
 
 class StepResult(BaseModel):
     name: str
@@ -20,7 +20,7 @@ class StepResult(BaseModel):
     decision: str | None = None
 
 
-# ── Anomaly record ────────────────────────────────────────────────────────────
+# ── Anomaly record ───────────────────────────────────────────────────────────
 
 class Anomaly(BaseModel):
     type: str
@@ -28,7 +28,7 @@ class Anomaly(BaseModel):
     evidence: str
 
 
-# ── Evaluation result (produced by evaluate_node) ────────────────────────────
+# ── Evaluation result (produced by evaluate_node) ───────────────────────────
 
 class EvaluationResult(BaseModel):
     """Structured output from the evaluation node.
@@ -39,23 +39,36 @@ class EvaluationResult(BaseModel):
     - Accuracy: are step statuses correctly reported?
     """
     approved: bool
-    confidence: float = Field(ge=0.0, le=1.0, description="Confidence score 0.0–1.0")
-    feedback: str = Field(description="Explanation of the evaluation decision")
+    confidence: float = Field(
+        ge=0.0, le=1.0, description="Confidence score 0.0-1.0"
+    )
+    feedback: str = Field(
+        description="Explanation of the evaluation decision"
+    )
     missing_steps: list[str] = Field(
         default_factory=list,
-        description="Steps from the protocol that were not executed or not validated",
+        description=(
+            "Steps from the protocol that were not executed"
+            " or not validated"
+        ),
     )
     unsupported_anomalies: list[str] = Field(
         default_factory=list,
-        description="Anomaly types claimed without sufficient evidence in the conversation",
+        description=(
+            "Anomaly types claimed without sufficient"
+            " evidence in the conversation"
+        ),
     )
     suggested_actions: list[str] = Field(
         default_factory=list,
-        description="Specific actions the agent should take before the report is finalised",
+        description=(
+            "Specific actions the agent should take"
+            " before the report is finalised"
+        ),
     )
 
 
-# ── Final report ──────────────────────────────────────────────────────────────
+# ── Final report ─────────────────────────────────────────────────────────────
 
 class PentestReport(BaseModel):
     status: Literal["success", "partial_failure", "failure"]
@@ -67,7 +80,7 @@ class PentestReport(BaseModel):
     evaluation: EvaluationResult | None = None
 
 
-# ── LangGraph State ───────────────────────────────────────────────────────────
+# ── LangGraph State ──────────────────────────────────────────────────────────
 
 class PentestState(TypedDict):
     # Conversation history — managed by LangGraph via add_messages reducer
@@ -99,7 +112,7 @@ class PentestState(TypedDict):
     drift_context: str | None
 
     # OpenAPI enrichment — populated at startup from /openapi.json fetch
-    # Rendered into the system prompt so the LLM sees real endpoint details
+    # Rendered into system prompt so the LLM sees real endpoint details
     openapi_context: str | None
 
     # Summary node — tracks how many times history was compressed
@@ -111,3 +124,21 @@ class PentestState(TypedDict):
 
     # Observability
     trace_id: str
+
+    # ── v2 fields (populated progressively as phases are implemented) ────────
+
+    # Phase 2: populated by recon node — API type, tech stack, auth
+    # mechanisms, discovered endpoints.  None until recon has run.
+    fingerprint: dict[str, Any] | None
+
+    # Phase 4: populated by planner node — ordered list of
+    # {module, priority, config} dicts describing what to test.
+    test_plan: list[dict[str, Any]]
+
+    # Phase 3+: accumulated findings from attack modules — each entry
+    # follows the Finding schema defined in state/architecture.md.
+    findings: list[dict[str, Any]]
+
+    # Phase 4: loaded from --scope-file at startup — controls allowed
+    # hosts, excluded paths, max requests, and module overrides.
+    scope: dict[str, Any] | None
