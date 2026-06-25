@@ -16,8 +16,8 @@ Environment variables (all can also be passed as CLI flags):
     OTEL_EXPORTER_OTLP_ENDPOINT  OpenTelemetry collector gRPC endpoint
     LOG_LEVEL               Logging level (default: INFO)
     REPORT_OUTPUT_PATH      File path for JSON report (optional)
-    SUMMARY_THRESHOLD       Max non-system messages before summarisation (default: 14)
-    SUMMARY_RECENT_KEEP     Recent messages kept verbatim after summarisation (default: 6)
+    SUMMARY_THRESHOLD       Max non-system messages before summarisation
+    SUMMARY_RECENT_KEEP     Recent messages kept verbatim after summarisation
     MAX_EVAL_RETRIES        Max evaluation retry cycles (default: 2)
 """
 from __future__ import annotations
@@ -30,17 +30,55 @@ import click
 
 from agent.logger import get_logger, setup_logging
 from agent.memory import retrieve_similar_runs, store_run
-from agent.probe import build_openapi_context, compare_fingerprints, probe_site
-from agent.telemetry import end_root_span, get_current_trace_id, setup_telemetry
+from agent.probe import (
+    build_openapi_context,
+    compare_fingerprints,
+    probe_site,
+)
+from agent.recon.fingerprint import fingerprint_target
+from agent.telemetry import (
+    end_root_span,
+    get_current_trace_id,
+    setup_telemetry,
+)
 
 
 @click.command()
-@click.option("--target-url", envvar="TARGET_BASE_URL", required=True, help="Target app base URL")
-@click.option("--username", envvar="AGENT_USERNAME", required=True, help="Test username")
-@click.option("--password", envvar="AGENT_PASSWORD", required=True, help="Initial password")
-@click.option("--new-password", envvar="AGENT_NEW_PASSWORD", default="", help="New password (random if empty)")
-@click.option("--log-level", envvar="LOG_LEVEL", default="INFO", help="Logging level")
-@click.option("--thread-id", default="", help="Resume a previous run by thread ID")
+@click.option(
+    "--target-url",
+    envvar="TARGET_BASE_URL",
+    required=True,
+    help="Target app base URL",
+)
+@click.option(
+    "--username",
+    envvar="AGENT_USERNAME",
+    required=True,
+    help="Test username",
+)
+@click.option(
+    "--password",
+    envvar="AGENT_PASSWORD",
+    required=True,
+    help="Initial password",
+)
+@click.option(
+    "--new-password",
+    envvar="AGENT_NEW_PASSWORD",
+    default="",
+    help="New password (random if empty)",
+)
+@click.option(
+    "--log-level",
+    envvar="LOG_LEVEL",
+    default="INFO",
+    help="Logging level",
+)
+@click.option(
+    "--thread-id",
+    default="",
+    help="Resume a previous run by thread ID",
+)
 def main(
     target_url: str,
     username: str,
@@ -49,7 +87,7 @@ def main(
     log_level: str,
     thread_id: str,
 ) -> None:
-    """Autonomous Pentesting Agent — authentication lifecycle tester."""
+    """Autonomous Pentesting Agent — security scanner."""
     asyncio.run(
         _run(
             target_url=target_url,
@@ -70,18 +108,17 @@ async def _run(
     log_level: str,
     thread_id: str,
 ) -> None:
-    # ── 1. Logging ────────────────────────────────────────────────────────────
+    # ── 1. Logging ─────────────────────────────────────────────────────────
     setup_logging(log_level)
     log = get_logger("main")
 
-    # ── 2. Telemetry (must happen before any LLM / HTTP calls) ───────────────
-    # setup_telemetry() starts a root "agent.run" span so every httpx and
-    # LangChain child span shares one trace_id.  The root span is closed by
-    # end_root_span() in the finally block below.
-    tracer_provider = setup_telemetry(target_url=target_url, username=username)
-    trace_id = get_current_trace_id()  # non-empty now that the root span is active
+    # ── 2. Telemetry ────────────────────────────────────────────────────────
+    tracer_provider = setup_telemetry(
+        target_url=target_url, username=username
+    )
+    trace_id = get_current_trace_id()
 
-    # ── 3. Resolve credentials and IDs ───────────────────────────────────────
+    # ── 3. Resolve credentials and IDs ──────────────────────────────────────
     effective_new_password = new_password or secrets.token_urlsafe(16)
     effective_thread_id = thread_id or str(uuid.uuid4())
 
@@ -95,24 +132,33 @@ async def _run(
         resuming=bool(thread_id),
     )
 
-    # ── 4. Long-term memory — retrieve past runs + stored fingerprint ─────────
-    past_context, last_fingerprint = await retrieve_similar_runs(target_url, k=3)
+    # ── 4. Long-term memory ──────────────────────────────────────────────────
+    past_context, last_fingerprint = await retrieve_similar_runs(
+        target_url, k=3
+    )
     if past_context:
         log.info("agent.memory_loaded", past_runs=len(past_context))
 
-    # ── 5. Site probe — fingerprint current state of the target ───────────────
+    # ── 5. Site probes (v1 drift + v2 fingerprint run in parallel) ──────────
     log.info("agent.probing_site", target=target_url)
-    current_fingerprint = await probe_site(target_url)
+    current_fingerprint, v2_fingerprint = await asyncio.gather(
+        probe_site(target_url),
+        fingerprint_target(target_url),
+    )
 
-    # ── 6. Drift detection + OpenAPI enrichment ───────────────────────────────
-    drift_context = compare_fingerprints(last_fingerprint, current_fingerprint)
+    # ── 6. Drift detection + OpenAPI enrichment ──────────────────────────────
+    drift_context = compare_fingerprints(
+        last_fingerprint, current_fingerprint
+    )
     openapi_context = build_openapi_context(current_fingerprint.openapi)
 
     if drift_context:
         log.warning(
             "agent.drift_detected",
             target=target_url,
-            last_probed_at=last_fingerprint.probed_at if last_fingerprint else None,
+            last_probed_at=(
+                last_fingerprint.probed_at if last_fingerprint else None
+            ),
             current_probed_at=current_fingerprint.probed_at,
         )
     else:
@@ -122,16 +168,24 @@ async def _run(
             first_run=last_fingerprint is None,
         )
 
-    # ── 7. Build and run the graph ────────────────────────────────────────────
+    log.info(
+        "agent.fingerprint_ready",
+        api_type=v2_fingerprint.api_type.value,
+        endpoint_count=len(v2_fingerprint.endpoints),
+        auth_mechanisms=v2_fingerprint.auth_mechanisms,
+    )
+
+    # ── 7. Build and run the graph ───────────────────────────────────────────
     from langchain_core.messages import HumanMessage
-    from agent.graph import build_graph  # deferred import avoids circular at module load
+    # deferred import avoids circular at module load
+    from agent.graph import build_graph
 
     graph = await build_graph()
 
     initial_state = {
-        # Seed with one HumanMessage so the LLM always receives at least one
-        # non-system turn — required by Anthropic and good practice in general.
-        "messages": [HumanMessage(content="Begin the penetration test.")],
+        "messages": [
+            HumanMessage(content="Begin the penetration test.")
+        ],
         "base_url": target_url,
         "username": username,
         "current_password": password,
@@ -150,23 +204,30 @@ async def _run(
         "eval_result": None,
         "eval_attempts": 0,
         "trace_id": trace_id,
+        # v2 fields
+        "fingerprint": v2_fingerprint.to_dict(),
+        "test_plan": [],
+        "findings": [],
+        "scope": None,
     }
 
     config = {
         "configurable": {"thread_id": effective_thread_id},
-        # 10-step flow × ~2 messages/step = ~20 messages + evaluation overhead.
-        # 60 gives ample room without permitting infinite loops.
         "recursion_limit": 60,
     }
     final_state = await graph.ainvoke(initial_state, config=config)
 
-    # ── 8. Long-term memory — store the completed run + current fingerprint ───
+    # ── 8. Long-term memory — store the completed run ────────────────────────
     from agent.state import Anomaly, PentestReport, StepResult
 
     report = PentestReport(
         status=final_state.get("final_status") or "failure",
-        steps=[StepResult(**s) for s in final_state.get("step_results", [])],
-        anomalies=[Anomaly(**a) for a in final_state.get("anomalies", [])],
+        steps=[
+            StepResult(**s) for s in final_state.get("step_results", [])
+        ],
+        anomalies=[
+            Anomaly(**a) for a in final_state.get("anomalies", [])
+        ],
         thread_id=effective_thread_id,
     )
     await store_run(report, target_url, fingerprint=current_fingerprint)
@@ -181,10 +242,7 @@ async def _run(
         eval_attempts=final_state.get("eval_attempts", 0),
     )
 
-    # ── 9. Close root span and flush OTel spans ───────────────────────────────
-    # end_root_span() closes the "agent.run" root span (opened in setup_telemetry)
-    # so it is exported.  force_flush() drains the BatchSpanProcessor queue —
-    # without it, spans queued asynchronously are lost when the container exits.
+    # ── 9. Close root span and flush OTel spans ──────────────────────────────
     end_root_span()
     if tracer_provider is not None:
         tracer_provider.force_flush(timeout_millis=5000)

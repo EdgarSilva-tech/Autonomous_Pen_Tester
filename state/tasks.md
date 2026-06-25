@@ -18,26 +18,36 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[-]` blocked
 
 **Note:** Discovered that LangChain runs `@tool` sync functions via `context.run()` (copied context), so `ContextVar.set()` inside sync tools doesn't propagate back. Fixed `clear_session_headers` to mutate the dict in place (same approach as `set_session_header`).
 
-## Phase 2 — Recon & API Type Detection
+## Phase 2 — Recon & API Type Detection ✓ COMPLETE
 
-- [ ] Create `agent/recon/fingerprint.py` — API type + tech stack + auth mechanism detection
-- [ ] Create `agent/recon/discovery.py` — endpoint discovery (OpenAPI, GraphQL introspection, WSDL, path fuzzing)
-- [ ] Create `agent/recon/api_adapters/rest.py`
-- [ ] Create `agent/recon/api_adapters/graphql.py`
-- [ ] Create `agent/recon/api_adapters/soap.py`
-- [ ] Create `agent/recon/api_adapters/grpc.py` (stub)
-- [ ] Refactor `agent/probe.py` to use new recon modules
-- [ ] Update `agent/state.py` with `FingerprintResult` type
+- [x] Create `agent/recon/fingerprint.py` — API type + tech stack + auth mechanism detection
+- [x] Create `agent/recon/discovery.py` — endpoint discovery (OpenAPI, GraphQL introspection, WSDL, path fuzzing)
+- [x] Create `agent/recon/api_adapters/rest.py`
+- [x] Create `agent/recon/api_adapters/graphql.py`
+- [x] Create `agent/recon/api_adapters/soap.py`
+- [x] Create `agent/recon/api_adapters/grpc.py` (stub)
+- [x] `agent/probe.py` kept intact (backward compat); new recon layer runs alongside it
+- [x] `agent/main.py` updated — runs probe_site + fingerprint_target in parallel; v2 fingerprint dict stored in state["fingerprint"]
+- [x] `agent/state.py` already had `fingerprint: dict[str, Any] | None` from Phase 1 — sufficient
+- [x] 44 new tests across `test_fingerprint.py` and `test_discovery.py`; 152/152 passing
 
-## Phase 3 — Attack Tool Modules
+**Detection priority:** REST_OPENAPI → GRAPHQL → SOAP → GRPC → REST_SPECLESS
+**Parallel probes:** OpenAPI spec + GraphQL introspection + WSDL + root header collection run concurrently via asyncio.gather
+**Note:** gRPC adapter is a stub (logging-only); full support requires HTTP/2 + protobuf reflection via MCP server
 
-- [ ] `agent/tools/attacks/injection.py`: sqli_probe, nosql_probe, ssti_probe, xss_probe
-- [ ] `agent/tools/attacks/auth.py`: jwt_analyze, brute_force_check, session_fixation_check, token_entropy_check
-- [ ] `agent/tools/attacks/access.py`: idor_probe, bola_probe, privilege_escalation_check
-- [ ] `agent/tools/attacks/headers.py`: cors_check, security_headers_check, csp_check
-- [ ] `agent/tools/attacks/disclosure.py`: error_disclosure_probe, pii_scan, path_traversal_probe, http_methods_check
-- [ ] `agent/tools/attacks/ratelimit.py`: rate_limit_check, ip_bypass_check
-- [ ] Unit tests for each attack module
+## Phase 3 — Attack Tool Modules ✓ COMPLETE
+
+- [x] `agent/tools/attacks/injection.py`: sqli_probe, nosql_probe, ssti_probe, xss_probe
+- [x] `agent/tools/attacks/auth.py`: added jwt_analyze, brute_force_check, session_fixation_check, token_entropy_check (flow tools preserved)
+- [x] `agent/tools/attacks/access.py`: idor_probe, bola_probe, privilege_escalation_check
+- [x] `agent/tools/attacks/headers.py`: cors_check, security_headers_check, csp_check
+- [x] `agent/tools/attacks/disclosure.py`: error_disclosure_probe, pii_scan, path_traversal_probe, http_methods_check
+- [x] `agent/tools/attacks/ratelimit.py`: rate_limit_check, ip_bypass_check
+- [x] `agent/tools/__init__.py` updated — ALL_TOOLS now includes all 6 modules
+- [x] Unit tests: test_injection, test_auth_attacks, test_access, test_headers, test_disclosure, test_ratelimit
+
+**Tool count:** 6 primitives + 8 auth (4 flow + 4 attack) + 4 injection + 3 access + 3 headers + 4 disclosure + 2 ratelimit = **30 tools total bound to LLM**
+**OWASP coverage:** SQLi, NoSQLi, SSTI, XSS, IDOR/BOLA, privilege escalation, CORS, security headers, CSP, error disclosure, PII exposure, path traversal, HTTP methods, rate limiting, IP bypass
 
 ## Phase 4 — Planner Node & Graph Refactor
 
