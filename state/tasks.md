@@ -49,14 +49,21 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[-]` blocked
 **Tool count:** 6 primitives + 8 auth (4 flow + 4 attack) + 4 injection + 3 access + 3 headers + 4 disclosure + 2 ratelimit = **30 tools total bound to LLM**
 **OWASP coverage:** SQLi, NoSQLi, SSTI, XSS, IDOR/BOLA, privilege escalation, CORS, security headers, CSP, error disclosure, PII exposure, path traversal, HTTP methods, rate limiting, IP bypass
 
-## Phase 4 — Planner Node & Graph Refactor
+## Phase 4 — Planner Node & Graph Refactor ✓ COMPLETE
 
-- [ ] Create `agent/nodes/planner.py` — LLM reasons over fingerprint → emits test_plan
-- [ ] Refactor `agent/graph.py`: recon → planner → executor → evaluate → report
-- [ ] Add scope config: `--scope-file` CLI flag + YAML schema
-- [ ] Update planner prompt — must describe Layer 3 MCP tool classes so LLM uses them appropriately when available; must not assume any MCP tool exists
-- [ ] Update executor, evaluator prompts in `agent/prompts.py`
-- [ ] Integration test: full planner flow end-to-end (with and without MCP servers)
+- [x] `agent/nodes/planner.py` — `TestPlanItem` + `planner_node`; LLM with structured output reads fingerprint + scope → emits test_plan list
+- [x] `agent/graph.py` refactored: `START → planner_node → llm_node(executor) → tools_node → evaluate_node → report_node`
+- [x] `agent/scope.py` — `ScopeConfig` Pydantic model + `load_scope(path)`
+- [x] `agent/main.py` — added `--scope-file` CLI flag (envvar `SCOPE_FILE`); scope loaded into `initial_state["scope"]`
+- [x] `requirements.txt` — added `pyyaml>=6.0,<7`
+- [x] `agent/prompts.py` — full rewrite: `build_executor_prompt()` (v2 general), `build_system_prompt()` (routes v1/v2 based on fingerprint presence)
+- [x] `agent/nodes/evaluate.py` — dual-mode evaluator: v2 uses `_TOOL_TO_MODULE` map + module coverage summary when `test_plan` present; v1 legacy auth-step logic unchanged
+- [x] `tests/integration/test_planner_flow.py` — 7 tests: planner node (4 scenarios), evaluate_node v2 mode (3 scenarios)
+
+**Graph topology:** `START → planner_node → llm_node ⟺ tools_node → evaluate_node → report_node`
+**Planner output schema:** `{module, tools, priority, paths, reason, config}`
+**Scope YAML keys:** `allowed_hosts`, `excluded_paths`, `max_requests_per_tool`, `enabled_modules`, `disabled_modules`, `severity_threshold`
+**MCP note:** planner prompt explicitly tells LLM that MCP tools may be available at runtime but are not assumed
 
 ## Phase 5 — Report Generation & Target App Extension
 

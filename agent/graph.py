@@ -1,30 +1,34 @@
 """LangGraph graph definition for the Autonomous Pentesting Agent.
 
-Custom graph architecture (replaces create_react_agent):
+Graph topology (Phase 4):
 
   START
-    │
-    ▼
-  llm_node  ◄─────────────────────────────────────┐
-    │                                              │
-    ├─ tool_calls present? ──► tools_node          │  (ReAct loop)
-    │                              │               │
-    │                    should_summarise?         │
-    │                         │       │            │
-    │                    summarize  llm_node ──────┘
-    │                    _node ─────────────────────┘
-    │
-    └─ no tool_calls ──► evaluate_node
-                              │
-                    should_continue_after_eval?
-                         │              │
-                    llm_node         report_node
-                  (corrective          │
-                     pass)            END
+    |
+    v
+  planner_node  (LLM: fingerprint + scope -> test_plan)
+    |
+    v
+  llm_node  <──────────────────────────────────────────┐
+    |                                                   |
+    +-- tool_calls? --> tools_node                      |  (ReAct loop)
+    |                       |                           |
+    |             should_summarise?                     |
+    |                  |       |                        |
+    |             summarize  llm_node ──────────────────┘
+    |             _node
+    |
+    +-- no tool_calls --> evaluate_node
+                               |
+                     should_continue_after_eval?
+                          |              |
+                      llm_node        report_node
+                    (corrective          |
+                       pass)           END
 
 Nodes
 -----
-  llm_node        — calls the LLM; produces tool calls or a final answer
+  planner_node    — calls LLM; reads fingerprint+scope -> writes test_plan
+  llm_node        — calls the executor LLM; produces tool calls or final answer
   tools_node      — executes all tool calls in the latest AIMessage
   summarize_node  — compresses old message history to control context size
   evaluate_node   — independent judge: validates completeness and evidence
@@ -45,6 +49,7 @@ from langgraph.prebuilt import ToolNode
 from agent.logger import get_logger
 from agent.mcp_client import get_mcp_tools
 from agent.nodes.evaluate import evaluate_node, should_continue_after_eval
+from agent.nodes.planner import planner_node
 from agent.nodes.summarize import should_summarise, summarize_node
 from agent.prompts import build_system_prompt
 from agent.report import assemble_report, emit_report
@@ -83,9 +88,6 @@ async def _get_checkpointer():
         )
         return None
     try:
-        # langgraph-checkpoint-postgres>=2.0 expects a psycopg3
-        # AsyncConnectionPool. AsyncPostgresSaver.from_conn_string() is
-        # now an async context manager — use the pool approach instead.
         from psycopg_pool import AsyncConnectionPool  # type: ignore
         from langgraph.checkpoint.postgres.aio import (  # type: ignore
             AsyncPostgresSaver,
@@ -103,7 +105,8 @@ async def _get_checkpointer():
         checkpointer = AsyncPostgresSaver(pool)
         await checkpointer.setup()
         log.info(
-            "graph.checkpointer_ready", uri=db_uri.split("@")[-1]
+            "graph.checkpointer_ready",
+            uri=db_uri.split("@")[-1],
         )
         return checkpointer
     except Exception as exc:
@@ -111,7 +114,7 @@ async def _get_checkpointer():
         return None
 
 
-# ── Node: llm_node ───────────────────────────────────────────────────────────
+# ── Node: llm_node (executor) ────────────────────────────────────────────────
 
 def _make_llm_node(llm_with_tools):
     """Return the llm_node function closed over the bound LLM."""
@@ -119,15 +122,17 @@ def _make_llm_node(llm_with_tools):
     async def llm_node(state: PentestState) -> dict[str, Any]:
         messages = state["messages"]
 
-        # Inject the system prompt if not already present
         if not messages or not isinstance(messages[0], SystemMessage):
             system_prompt = build_system_prompt(
-                username=state["username"],
-                current_password=state["current_password"],
-                new_password=state["new_password"],
+                username=state.get("username", ""),
+                current_password=state.get("current_password", ""),
+                new_password=state.get("new_password", ""),
                 past_context=state.get("past_context", []),
                 drift_context=state.get("drift_context"),
                 openapi_context=state.get("openapi_context"),
+                fingerprint=state.get("fingerprint"),
+                test_plan=state.get("test_plan"),
+                scope=state.get("scope"),
             )
             messages = (
                 [SystemMessage(content=system_prompt)] + list(messages)
@@ -137,7 +142,9 @@ def _make_llm_node(llm_with_tools):
         response: AIMessage = await llm_with_tools.ainvoke(messages)
         log.info(
             "llm_node.response",
-            has_tool_calls=bool(getattr(response, "tool_calls", None)),
+            has_tool_calls=bool(
+                getattr(response, "tool_calls", None)
+            ),
             tool_names=[
                 tc["name"] for tc in (response.tool_calls or [])
             ],
@@ -150,9 +157,11 @@ def _make_llm_node(llm_with_tools):
 # ── Edge: after llm_node ─────────────────────────────────────────────────────
 
 def route_after_llm(state: PentestState) -> str:
-    """Route to tools if the LLM produced tool calls; else evaluate."""
+    """Route to tools_node on tool calls; else to evaluate_node."""
     last = state["messages"][-1]
-    if isinstance(last, AIMessage) and getattr(last, "tool_calls", None):
+    if isinstance(last, AIMessage) and getattr(
+        last, "tool_calls", None
+    ):
         return "tools_node"
     return "evaluate_node"
 
@@ -200,33 +209,34 @@ async def build_graph():
     graph = StateGraph(PentestState)
 
     # ── Register nodes ───────────────────────────────────────────────────────
-    graph.add_node("llm_node",       _make_llm_node(llm_with_tools))
-    graph.add_node("tools_node",     ToolNode(all_tools))
-    graph.add_node("summarize_node", summarize_node)
-    graph.add_node("evaluate_node",  evaluate_node)
-    graph.add_node("report_node",    report_node)
+    graph.add_node("planner_node",    planner_node)
+    graph.add_node("llm_node",        _make_llm_node(llm_with_tools))
+    graph.add_node("tools_node",      ToolNode(all_tools))
+    graph.add_node("summarize_node",  summarize_node)
+    graph.add_node("evaluate_node",   evaluate_node)
+    graph.add_node("report_node",     report_node)
 
-    # ── Edges ────────────────────────────────────────────────────────────────
-    graph.add_edge(START, "llm_node")
+    # ── Edges ───────────────────────────────────────────────────────────────
+    graph.add_edge(START, "planner_node")
+    graph.add_edge("planner_node", "llm_node")
 
-    # After LLM: tool calls → tools_node; final answer → evaluate_node
     graph.add_conditional_edges(
         "llm_node",
         route_after_llm,
-        {"tools_node": "tools_node", "evaluate_node": "evaluate_node"},
+        {
+            "tools_node": "tools_node",
+            "evaluate_node": "evaluate_node",
+        },
     )
 
-    # After tools: check if history is too long
     graph.add_conditional_edges(
         "tools_node",
         should_summarise,
         {"summarize": "summarize_node", "llm_node": "llm_node"},
     )
 
-    # After summarisation: always back to LLM
     graph.add_edge("summarize_node", "llm_node")
 
-    # After evaluation: corrective pass → LLM, or finalise → report
     graph.add_conditional_edges(
         "evaluate_node",
         should_continue_after_eval,

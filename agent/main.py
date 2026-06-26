@@ -1,24 +1,25 @@
 """CLI entrypoint for the Autonomous Pentesting Agent.
 
 Usage:
-    python -m agent.main          # reads all config from environment variables
+    python -m agent.main          # reads all config from env vars
     python -m agent.main --help   # show options
 
-Environment variables (all can also be passed as CLI flags):
-    TARGET_BASE_URL         URL of the target FastAPI app
-    AGENT_USERNAME          Username to test
-    AGENT_PASSWORD          Initial password
-    AGENT_NEW_PASSWORD      New password (generated randomly if not set)
-    LITELLM_BASE_URL        LiteLLM proxy URL
-    LITELLM_API_KEY         LiteLLM master key / virtual key
-    LANGGRAPH_DB_URI        PostgreSQL URI for LangGraph checkpoints
-    MEMORY_DB_URI           PostgreSQL+pgvector URI for long-term memory
+Environment variables (can also be passed as CLI flags):
+    TARGET_BASE_URL    URL of the target app
+    AGENT_USERNAME     Username to test
+    AGENT_PASSWORD     Initial password
+    AGENT_NEW_PASSWORD New password (random if not set)
+    SCOPE_FILE         Path to YAML scope config file
+    LITELLM_BASE_URL   LiteLLM proxy URL
+    LITELLM_API_KEY    LiteLLM master key / virtual key
+    LANGGRAPH_DB_URI   PostgreSQL URI for LangGraph checkpoints
+    MEMORY_DB_URI      PostgreSQL+pgvector URI for long-term memory
     OTEL_EXPORTER_OTLP_ENDPOINT  OpenTelemetry collector gRPC endpoint
-    LOG_LEVEL               Logging level (default: INFO)
-    REPORT_OUTPUT_PATH      File path for JSON report (optional)
-    SUMMARY_THRESHOLD       Max non-system messages before summarisation
-    SUMMARY_RECENT_KEEP     Recent messages kept verbatim after summarisation
-    MAX_EVAL_RETRIES        Max evaluation retry cycles (default: 2)
+    LOG_LEVEL          Logging level (default: INFO)
+    REPORT_OUTPUT_PATH File path for JSON report (optional)
+    SUMMARY_THRESHOLD  Max non-system messages before summarisation
+    SUMMARY_RECENT_KEEP Recent messages kept verbatim after summarisation
+    MAX_EVAL_RETRIES   Max evaluation retry cycles (default: 2)
 """
 from __future__ import annotations
 
@@ -36,6 +37,7 @@ from agent.probe import (
     probe_site,
 )
 from agent.recon.fingerprint import fingerprint_target
+from agent.scope import load_scope
 from agent.telemetry import (
     end_root_span,
     get_current_trace_id,
@@ -69,6 +71,12 @@ from agent.telemetry import (
     help="New password (random if empty)",
 )
 @click.option(
+    "--scope-file",
+    envvar="SCOPE_FILE",
+    default=None,
+    help="Path to YAML scope configuration file",
+)
+@click.option(
     "--log-level",
     envvar="LOG_LEVEL",
     default="INFO",
@@ -84,6 +92,7 @@ def main(
     username: str,
     password: str,
     new_password: str,
+    scope_file: str | None,
     log_level: str,
     thread_id: str,
 ) -> None:
@@ -94,6 +103,7 @@ def main(
             username=username,
             password=password,
             new_password=new_password,
+            scope_file=scope_file,
             log_level=log_level,
             thread_id=thread_id,
         )
@@ -105,22 +115,32 @@ async def _run(
     username: str,
     password: str,
     new_password: str,
+    scope_file: str | None,
     log_level: str,
     thread_id: str,
 ) -> None:
-    # ── 1. Logging ─────────────────────────────────────────────────────────
+    # ── 1. Logging ─────────────────────────────────────────────────
     setup_logging(log_level)
     log = get_logger("main")
 
-    # ── 2. Telemetry ────────────────────────────────────────────────────────
+    # ── 2. Telemetry ────────────────────────────────────────────────
     tracer_provider = setup_telemetry(
         target_url=target_url, username=username
     )
     trace_id = get_current_trace_id()
 
-    # ── 3. Resolve credentials and IDs ──────────────────────────────────────
+    # ── 3. Credentials and IDs ──────────────────────────────────────
     effective_new_password = new_password or secrets.token_urlsafe(16)
     effective_thread_id = thread_id or str(uuid.uuid4())
+
+    # ── 4. Scope ────────────────────────────────────────────────────
+    scope = load_scope(scope_file)
+    log.info(
+        "agent.scope_loaded",
+        active_modules=scope.active_modules,
+        excluded_paths=scope.excluded_paths,
+        scope_file=scope_file or "(defaults)",
+    )
 
     log.info(
         "agent.starting",
@@ -132,32 +152,37 @@ async def _run(
         resuming=bool(thread_id),
     )
 
-    # ── 4. Long-term memory ──────────────────────────────────────────────────
+    # ── 5. Long-term memory ─────────────────────────────────────────
     past_context, last_fingerprint = await retrieve_similar_runs(
         target_url, k=3
     )
     if past_context:
-        log.info("agent.memory_loaded", past_runs=len(past_context))
+        log.info(
+            "agent.memory_loaded", past_runs=len(past_context)
+        )
 
-    # ── 5. Site probes (v1 drift + v2 fingerprint run in parallel) ──────────
+    # ── 6. Site probes (v1 drift + v2 fingerprint in parallel) ──────
     log.info("agent.probing_site", target=target_url)
     current_fingerprint, v2_fingerprint = await asyncio.gather(
         probe_site(target_url),
         fingerprint_target(target_url),
     )
 
-    # ── 6. Drift detection + OpenAPI enrichment ──────────────────────────────
+    # ── 7. Drift detection + OpenAPI enrichment ──────────────────────
     drift_context = compare_fingerprints(
         last_fingerprint, current_fingerprint
     )
-    openapi_context = build_openapi_context(current_fingerprint.openapi)
+    openapi_context = build_openapi_context(
+        current_fingerprint.openapi
+    )
 
     if drift_context:
         log.warning(
             "agent.drift_detected",
             target=target_url,
             last_probed_at=(
-                last_fingerprint.probed_at if last_fingerprint else None
+                last_fingerprint.probed_at
+                if last_fingerprint else None
             ),
             current_probed_at=current_fingerprint.probed_at,
         )
@@ -175,9 +200,8 @@ async def _run(
         auth_mechanisms=v2_fingerprint.auth_mechanisms,
     )
 
-    # ── 7. Build and run the graph ───────────────────────────────────────────
+    # ── 8. Build and run the graph ──────────────────────────────────
     from langchain_core.messages import HumanMessage
-    # deferred import avoids circular at module load
     from agent.graph import build_graph
 
     graph = await build_graph()
@@ -208,7 +232,7 @@ async def _run(
         "fingerprint": v2_fingerprint.to_dict(),
         "test_plan": [],
         "findings": [],
-        "scope": None,
+        "scope": scope.to_dict(),
     }
 
     config = {
@@ -217,20 +241,24 @@ async def _run(
     }
     final_state = await graph.ainvoke(initial_state, config=config)
 
-    # ── 8. Long-term memory — store the completed run ────────────────────────
+    # ── 9. Store completed run in long-term memory ───────────────────
     from agent.state import Anomaly, PentestReport, StepResult
 
     report = PentestReport(
         status=final_state.get("final_status") or "failure",
         steps=[
-            StepResult(**s) for s in final_state.get("step_results", [])
+            StepResult(**s)
+            for s in final_state.get("step_results", [])
         ],
         anomalies=[
-            Anomaly(**a) for a in final_state.get("anomalies", [])
+            Anomaly(**a)
+            for a in final_state.get("anomalies", [])
         ],
         thread_id=effective_thread_id,
     )
-    await store_run(report, target_url, fingerprint=current_fingerprint)
+    await store_run(
+        report, target_url, fingerprint=current_fingerprint
+    )
 
     log.info(
         "agent.done",
@@ -242,7 +270,7 @@ async def _run(
         eval_attempts=final_state.get("eval_attempts", 0),
     )
 
-    # ── 9. Close root span and flush OTel spans ──────────────────────────────
+    # ── 10. Close root span and flush OTel spans ─────────────────────
     end_root_span()
     if tracer_provider is not None:
         tracer_provider.force_flush(timeout_millis=5000)

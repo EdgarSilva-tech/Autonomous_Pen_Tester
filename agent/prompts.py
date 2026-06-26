@@ -1,95 +1,206 @@
-"""System prompt for the Autonomous Pentesting Agent ReAct loop."""
+"""System prompts for the Autonomous Pentesting Agent."""
 from __future__ import annotations
 
-SYSTEM_PROMPT = """\
-You are an autonomous security testing agent. Your task is to perform a complete
-authentication lifecycle test against a FastAPI web application and produce a
-structured audit report.
+import json
 
-## API Contract (read carefully before executing)
+
+# ── Legacy auth-lifecycle prompt (v1) ────────────────────────────────────────
+
+_LEGACY_AUTH_PROMPT = """\
+You are an autonomous security testing agent. Perform a complete
+authentication lifecycle test and produce a structured audit report.
+
+## API Contract
 
 ### POST /login
 - Request:  {{"username": "...", "password": "..."}}
-- Success:  HTTP 200 → {{"token": "<bearer-token>", "expires_in": 300}}
-            IMPORTANT: the field is **"token"**, not "access_token".
-- Failure:  HTTP 401 → {{"detail": "Invalid credentials"}}  (same message for
-            unknown username AND wrong password — no user enumeration).
-- Lockout:  HTTP 429 after 3 consecutive failures. Wait
-            30 s then retry; do NOT abort.
+- Success:  HTTP 200 -> {{"token": "<bearer>", "expires_in": 300}}
+            Field is "token", NOT "access_token".
+- Failure:  HTTP 401 -> {{"detail": "Invalid credentials"}}
+- Lockout:  HTTP 429 after 3 consecutive failures.
 
 ### GET /me
-- Header:   Authorization: Bearer <token>
-- Success:  HTTP 200 → {{"username": "..."}}
-- Expired:  HTTP 401 → {{"detail": "Token expired"}} — re-authenticate and retry.
+- Header:  Authorization: Bearer <token>
+- Success: HTTP 200 -> {{"username": "..."}}
+- Expired: HTTP 401 -> {{"detail": "Token expired"}} re-auth required.
 
 ### POST /change-password
-- Header:   Authorization: Bearer <token>
-- Request:  {{"current_password": "...", "new_password": "..."}}
-- Success:  HTTP 200. ALL sessions for the user are immediately invalidated.
-            The bearer token you hold is no longer valid after this call.
-            You MUST re-login with {new_password} before making further
-            authenticated requests.
-- New-password rules: ≥8 characters, must contain both uppercase and lowercase
-  letters, must contain at least one digit.
+- Request: {{"current_password": "...", "new_password": "..."}}
+- Success: HTTP 200. ALL sessions immediately invalidated.
 
 ### POST /logout
-- Header:   Authorization: Bearer <token>
-- Success:  HTTP 200. Session removed.
-- Note:     If you call logout AFTER change-password (session already gone),
-            you will receive HTTP 401 — this is expected behaviour, not an anomaly.
+- Header:  Authorization: Bearer <token>
+- Success: HTTP 200. Session removed.
 
-## Objective
-Execute the following steps in order, using the available tools:
+## Steps (execute in order)
 
-1. **login** — POST /login with {username} and {current_password}.
-               Extract the "token" field from the response.
-2. **validate_login** — GET /me to confirm authentication.
-3. **change_password** — POST /change-password; provide {current_password} and
-                         {new_password}. Discard the old token immediately after.
-4. **validate_session_invalidation** — GET /me with the OLD token; expect HTTP 401.
-                                        This confirms password change invalidates sessions.
-5. **re-authenticate** — POST /login with {username} and {new_password}.
-6. **validate_reauth** — GET /me with the new token to confirm re-authentication.
-7. **logout** — POST /logout with the new token.
-8. **validate_logout** — GET /me with the new token; expect HTTP 401.
-9. **report** — STOP calling tools. Produce the final JSON report directly as
-               your text response (no tool calls). Include all step results and
-               anomalies. This must be the last thing you do.
+1. login — POST /login with {username} / {current_password}.
+2. validate_login — GET /me; confirm authentication.
+3. change_password — POST /change-password; supply {current_password}
+   and {new_password}.
+4. validate_session_invalidation — GET /me with OLD token; expect 401.
+5. re-authenticate — POST /login with {username} / {new_password}.
+6. validate_reauth — GET /me with new token; expect 200.
+7. logout — POST /logout with new token.
+8. validate_logout — GET /me with new token; expect 401.
+9. report — Stop tools. Produce the final JSON report.
 
-## Error Handling Rules
-- HTTP 401 on login → mark step as failure, abort, do NOT retry with the same credentials.
-- HTTP 429 (rate limited) → wait 30 s and retry; do NOT abort.
-- Network timeout or 5xx → retry up to 3 times with exponential back-off (2s, 4s, 8s). If all retries fail, abort and record the decision.
-- Token expired mid-flow (401 "Token expired") → re-authenticate and resume from the failed step.
-- Any other unexpected HTTP status → log the decision taken and abort gracefully.
-- Endpoint returns 404 → flag a 'structural_change' anomaly and attempt reasonable alternatives before aborting.
+## Anomaly Types
+weak_password_policy, session_not_invalidated, logout_session_leak,
+token_not_rotated, rate_limiting_absent, structural_change.
 
-## Anomaly Detection (flag ALL that apply)
-- **weak_password_policy**: /change-password accepts the request without a valid current_password (or accepts a new password that does not meet strength requirements).
-- **session_not_invalidated**: After step 3 (change_password), GET /me with the OLD token still returns 200.
-- **logout_session_leak**: After step 7 (logout), GET /me with the new token still returns 200.
-- **token_not_rotated**: The token returned by re-authentication (step 5) is identical to the token from the initial login.
-- **rate_limiting_absent**: Repeated wrong-password attempts do not result in HTTP 429 after the expected threshold.
-- **structural_change**: Any endpoint returns a status code or response schema significantly different from what was expected or from a previous run. Include: the endpoint, the expected status, the actual status, and any probe evidence from the drift context below.
-
-Record EVERY anomaly found in the final report with type, description, and evidence (the exact HTTP status + response body snippet).
-
-## Discovered API Endpoints (from /openapi.json)
+## Discovered Endpoints
 {openapi_context}
 
-## Site Drift Context
+## Drift Context
 {drift_context}
 
-## Past Runs Context
+## Past Runs
+{past_context}
+"""
+
+
+# ── General executor prompt (v2) ─────────────────────────────────────────────
+
+_EXECUTOR_PROMPT = """\
+You are an autonomous web security testing agent. Reconnaissance has
+been completed and a test plan has been generated. Execute each item
+in the plan using the available tools, then produce a security report.
+
+## Target
+- API type:        {api_type}
+- Auth mechanisms: {auth_mechanisms}
+- Tech stack:      {tech_stack}
+
+## Discovered Endpoints
+{endpoints}
+
+## Test Plan (execute: critical -> high -> medium -> low)
+{test_plan}
+
+## Credentials (for auth-related tests)
+- Username: {username}
+- Password: {current_password}
+
+## Scope
+{scope_summary}
+
+## Past Run Context
 {past_context}
 
-## Output
-After completing all steps, produce a JSON summary of:
-- Overall status: "success", "partial_failure", or "failure"
-- Per-step results with name, status, http_status, error_msg, timestamp, decision
-- List of detected anomalies
-- Total elapsed time in milliseconds
+## Drift Context
+{drift_context}
+
+## Execution Instructions
+1. Execute each plan item in priority order.
+2. For each item call the listed tools on the listed paths.
+3. Supply required parameters (path, parameter, token) from the
+   endpoint list and credentials above.
+4. For access-control tools (idor_probe, bola_probe,
+   privilege_escalation_check) obtain a token via login_tool first.
+5. After all plan items are done, STOP and produce a final JSON report:
+   - overall_risk: critical | high | medium | low | clean
+   - findings: list of check, path, vulnerable, severity, description,
+     remediation dicts
+   - modules_tested: list of module names executed
+   - elapsed_ms: estimated total time
+
+## Error Handling
+- If a tool raises an error, skip it and move on.
+- Do not repeat identical tool calls more than twice.
+- If no endpoints discovered, probe: /, /api, /login, /health.
+
+## MCP Tools
+Additional tools may be available at runtime from MCP servers
+(e.g. nmap-mcp, nuclei-mcp, sqlmap-mcp). Use them when relevant;
+they complement the built-in tools.
 """
+
+
+# ── Constants ─────────────────────────────────────────────────────────────────
+
+_NO_PLAN = (
+    "(No test plan — run all modules on the discovered endpoints)"
+)
+_NO_ENDPOINTS = (
+    "(None discovered — probe /, /api, /login, /health)"
+)
+_NO_CONTEXT = "No previous runs recorded for this target."
+_NO_DRIFT = (
+    "No drift detected — behaviour matches the last recorded run."
+)
+
+
+# ── Formatters ────────────────────────────────────────────────────────────────
+
+def _fmt_test_plan(items: list[dict]) -> str:
+    if not items:
+        return _NO_PLAN
+    lines: list[str] = []
+    for i, item in enumerate(items, 1):
+        tools_str = ", ".join(item.get("tools", []))
+        paths_str = ", ".join(item.get("paths", []))
+        pri = item.get("priority", "?").upper()
+        mod = item.get("module", "?")
+        reason = item.get("reason", "")
+        lines.append(f"{i}. [{pri}] {mod} — {reason}")
+        lines.append(f"   Tools: {tools_str}")
+        lines.append(f"   Paths: {paths_str}")
+    return "\n".join(lines)
+
+
+def _fmt_endpoints(endpoints: list[dict]) -> str:
+    if not endpoints:
+        return _NO_ENDPOINTS
+    return "\n".join(
+        f"  {e.get('method','?')} {e.get('path','?')}"
+        for e in endpoints[:30]
+    )
+
+
+def _fmt_past(past: list[str]) -> str:
+    if not past:
+        return _NO_CONTEXT
+    return "\n".join(
+        f"[Run {i + 1}]: {s}" for i, s in enumerate(past)
+    )
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def build_executor_prompt(
+    fingerprint: dict,
+    test_plan: list[dict],
+    scope: dict,
+    username: str = "",
+    current_password: str = "",
+    past_context: list[str] | None = None,
+    drift_context: str | None = None,
+) -> str:
+    """Build the general executor system prompt for v2 runs."""
+    fp = fingerprint or {}
+    tech = fp.get("tech_stack") or {}
+    tech_str = (
+        json.dumps(tech, separators=(",", ":"))
+        if tech else "(unknown)"
+    )
+    active = scope.get("active_modules") or "all modules"
+    excl = scope.get("excluded_paths") or "(none)"
+    return _EXECUTOR_PROMPT.format(
+        api_type=fp.get("api_type", "unknown"),
+        auth_mechanisms=fp.get("auth_mechanisms", []),
+        tech_stack=tech_str,
+        endpoints=_fmt_endpoints(fp.get("endpoints", [])),
+        test_plan=_fmt_test_plan(test_plan or []),
+        username=username or "(not provided)",
+        current_password=current_password or "(not provided)",
+        scope_summary=(
+            f"Active modules: {active} | "
+            f"Excluded paths: {excl}"
+        ),
+        past_context=_fmt_past(past_context or []),
+        drift_context=drift_context or _NO_DRIFT,
+    )
 
 
 def build_system_prompt(
@@ -99,36 +210,37 @@ def build_system_prompt(
     past_context: list[str],
     drift_context: str | None = None,
     openapi_context: str | None = None,
+    *,
+    fingerprint: dict | None = None,
+    test_plan: list[dict] | None = None,
+    scope: dict | None = None,
 ) -> str:
-    context_block = (
-        "\n".join(
-            f"[Run {i + 1}]: {summary}"
-            for i, summary in enumerate(past_context)
-        )
-        if past_context
-        else "No previous runs recorded for this target."
-    )
+    """Return the executor system prompt.
 
-    drift_block = (
-        drift_context
-        if drift_context
-        else (
-            "No drift detected — site behaviour matches the last recorded run. "
-            "Proceed with the standard protocol."
+    Uses the v2 general executor prompt when fingerprint + test_plan are
+    available (Phase 4+); falls back to the v1 auth-lifecycle prompt for
+    backward compatibility.
+    """
+    if fingerprint and test_plan is not None:
+        return build_executor_prompt(
+            fingerprint=fingerprint,
+            test_plan=test_plan,
+            scope=scope or {},
+            username=username,
+            current_password=current_password,
+            past_context=past_context,
+            drift_context=drift_context,
         )
-    )
 
     openapi_block = (
         openapi_context
-        if openapi_context
-        else "No OpenAPI schema available — rely on the API contract above."
+        or "No OpenAPI schema — rely on the API contract above."
     )
-
-    return SYSTEM_PROMPT.format(
+    return _LEGACY_AUTH_PROMPT.format(
         username=username,
         current_password=current_password,
         new_password=new_password,
-        past_context=context_block,
-        drift_context=drift_block,
+        past_context=_fmt_past(past_context),
+        drift_context=drift_context or _NO_DRIFT,
         openapi_context=openapi_block,
     )
