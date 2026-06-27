@@ -1,17 +1,15 @@
 """
-Target application for the AI/Agent Engineer technical challenge.
+Target application for the Autonomous Pen Tester project.
 
-Exposes a minimal authentication API with deliberate quirks for the
-candidate's agent to handle:
+Exposes:
+  - A minimal authentication API (v1 contract).
+  - Intentionally vulnerable endpoints for v2 attack-module testing.
 
-- Tokens expire after a configurable TTL.
-- Password change requires the current password (intentional: the candidate
-  must read the contract carefully and pass it through).
-- Login is rate-limited per username (3 failed attempts -> 30s lockout).
-- Some endpoints occasionally return 503 to simulate transient failures
-  (controlled via FLAKY_RATE env var; default 0.0 = disabled).
-
-This is NOT meant to be production code. It is a controlled target.
+Deliberate vulnerabilities (for testing only):
+  - CORS middleware reflects any Origin with Allow-Credentials: true.
+  - /api/search leaks SQL error strings when injection payloads are sent.
+  - /api/users/{user_id} returns user data without authentication (IDOR).
+  - /api/debug echoes a stack-trace style body on SQL-like input (error disclosure).
 """
 
 from __future__ import annotations
@@ -23,7 +21,8 @@ from dataclasses import dataclass, field
 from random import random
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 # ---------------------------------------------------------------------------
@@ -33,7 +32,7 @@ from pydantic import BaseModel, Field
 TOKEN_TTL_SECONDS = int(os.getenv("TOKEN_TTL_SECONDS", "300"))
 MAX_FAILED_LOGINS = int(os.getenv("MAX_FAILED_LOGINS", "3"))
 LOCKOUT_SECONDS = int(os.getenv("LOCKOUT_SECONDS", "30"))
-FLAKY_RATE = float(os.getenv("FLAKY_RATE", "0.0"))  # 0.0 disables flakiness
+FLAKY_RATE = float(os.getenv("FLAKY_RATE", "0.0"))
 
 # ---------------------------------------------------------------------------
 # In-memory state
@@ -66,16 +65,11 @@ state = State()
 
 def _seed_users() -> None:
     """Seed the initial users. Idempotent."""
-    seed = [
-        ("alice", "Alice#2025"),
-        ("bob", "Bob#2025"),
-    ]
-    for username, password in seed:
+    for username, password in [("alice", "Alice#2025"), ("bob", "Bob#2025")]:
         state.users.setdefault(username, User(username=username, password=password))
 
 
 _seed_users()
-
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -115,7 +109,6 @@ def _now() -> float:
 
 
 def _maybe_flake() -> None:
-    """Occasionally raise 503 to simulate transient backend failures."""
     if FLAKY_RATE > 0 and random() < FLAKY_RATE:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -157,7 +150,6 @@ def _get_current_session(
             detail="Invalid token",
         )
     if session.expires_at < _now():
-        # clean up expired token
         state.sessions.pop(token, None)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -172,13 +164,30 @@ def _get_current_session(
 
 
 app = FastAPI(
-    title="Pentest Challenge — Target App",
-    description=(
-        "Minimal authentication API used as the target for the AI/Agent "
-        "Engineer technical challenge."
-    ),
-    version="1.0.0",
+    title="Pentest Challenge - Target App",
+    description="Authentication API and intentionally vulnerable endpoints.",
+    version="2.0.0",
 )
+
+
+# -- CORS misconfiguration middleware ----------------------------------------
+# Reflects any Origin header with Access-Control-Allow-Credentials: true.
+# This is a CORS wildcard misconfiguration — intentionally vulnerable.
+
+@app.middleware("http")
+async def cors_reflect_middleware(request: Request, call_next):
+    response = await call_next(request)
+    origin = request.headers.get("origin")
+    if origin:
+        response.headers["access-control-allow-origin"] = origin
+        response.headers["access-control-allow-credentials"] = "true"
+        response.headers["access-control-allow-methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    return response
+
+
+# ---------------------------------------------------------------------------
+# v1 auth endpoints
+# ---------------------------------------------------------------------------
 
 
 @app.get("/health", response_model=MessageResponse, tags=["meta"])
@@ -192,7 +201,6 @@ def login(payload: LoginRequest) -> LoginResponse:
 
     user = state.users.get(payload.username)
     if user is None:
-        # Do not leak whether the username exists.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
@@ -215,7 +223,6 @@ def login(payload: LoginRequest) -> LoginResponse:
             detail="Invalid credentials",
         )
 
-    # success
     user.failed_attempts = 0
     user.locked_until = 0.0
     token = secrets.token_urlsafe(32)
@@ -253,7 +260,6 @@ def change_password(
 
     user.password = payload.new_password
 
-    # Invalidate all existing sessions for this user — the agent must re-login.
     to_remove = [
         tok for tok, s in state.sessions.items() if s.username == user.username
     ]
@@ -280,11 +286,63 @@ def me(
     return MeResponse(username=session.username)
 
 
-# Useful for tests / resetting state during candidate development.
 @app.post("/_admin/reset", response_model=MessageResponse, tags=["admin"])
 def reset() -> MessageResponse:
-    """Reset all in-memory state (users + sessions) to seed values."""
+    """Reset all in-memory state to seed values."""
     state.users.clear()
     state.sessions.clear()
     _seed_users()
     return MessageResponse(message="State reset")
+
+
+# ---------------------------------------------------------------------------
+# v2 intentionally vulnerable endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/search", tags=["vulnerable"])
+def search(q: str = "") -> dict:
+    """SQL injection vulnerable: leaks DB error strings on injection payloads."""
+    _SQL_CHARS = ("'", '"', "--", " OR ", " AND ", ";")
+    if any(c in q for c in _SQL_CHARS):
+        raise HTTPException(
+            status_code=500,
+            detail=f"sqlite_error: near \"{q}\": syntax error in SELECT * FROM users WHERE name = '{q}'",
+        )
+    results = [u for u in state.users if q.lower() in u.lower()]
+    return {"results": results, "query": q}
+
+
+@app.get("/api/users/{user_id}", tags=["vulnerable"])
+def get_user(user_id: str) -> dict:
+    """IDOR: returns user data without any authentication check."""
+    user = state.users.get(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "username": user.username,
+        "email": f"{user.username}@example.com",
+        "role": "user",
+    }
+
+
+@app.get("/api/debug", tags=["vulnerable"])
+@app.post("/api/debug", tags=["vulnerable"])
+async def debug(request: Request, id: str = "") -> JSONResponse:
+    """Error disclosure: leaks stack traces on SQL-like input."""
+    _SQL_CHARS = ("'", '"', "--", "OR", "AND")
+    if any(c in id for c in _SQL_CHARS):
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Internal Server Error",
+                "traceback": (
+                    "Traceback (most recent call last):\n"
+                    "  File \"/app/main.py\", line 42, in process_id\n"
+                    f"    cursor.execute(\"SELECT * FROM logs WHERE id = {id}\")\n"
+                    "sqlite3.OperationalError: unrecognized token"
+                ),
+                "stack trace": f"at process_id(main.py:42)",
+            },
+        )
+    return JSONResponse(status_code=200, content={"status": "ok", "id": id})

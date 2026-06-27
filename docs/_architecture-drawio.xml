@@ -1,0 +1,371 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="arch-diagram" name="Architecture">
+    <mxGraphModel background="#0a0a1e" dx="1400" dy="1000" grid="0" gridSize="10" guides="0" tooltips="0" connect="0" arrows="0" fold="0" page="0" pageScale="1" pageWidth="1900" pageHeight="1260" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="ttl" value="Autonomous Pen Tester — System Architecture"
+          style="text;html=1;strokeColor=none;fillColor=none;align=center;fontColor=#d0d0e8;fontSize=22;fontStyle=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="300" y="16" width="1300" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- ══ ZONE 1: TARGETS & EXTERNAL  y=64-209 ══ -->
+        <mxCell id="z1bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a0a0a;strokeColor=#8b3030;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="16" y="64" width="1868" height="145" as="geometry"/>
+        </mxCell>
+        <mxCell id="z1lbl" value="TARGETS &amp; EXTERNAL" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#c05050;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="28" y="68" width="260" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="tgt" value="&lt;b&gt;target-app :8000&lt;/b&gt;&lt;br/&gt;auth · SQLi · IDOR&lt;br/&gt;CORS · error disclosure"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3a0000;fontColor=#ffcccc;strokeColor=#c04040;strokeWidth=2;fontSize=13;"
+          vertex="1" parent="1">
+          <mxGeometry x="40" y="90" width="260" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="mcp_ext" value="&lt;b&gt;MCP Servers&lt;/b&gt;&lt;br/&gt;Tool call relay (optional)"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a3a;fontColor=#c0c0ff;strokeColor=#5050a0;strokeWidth=2;fontSize=13;"
+          vertex="1" parent="1">
+          <mxGeometry x="760" y="90" width="260" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="ai_prov" value="&lt;b&gt;OpenAI / Anthropic&lt;/b&gt;&lt;br/&gt;LLM APIs via LiteLLM"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a2a00;fontColor=#c0e080;strokeColor=#708030;strokeWidth=2;fontSize=13;"
+          vertex="1" parent="1">
+          <mxGeometry x="1560" y="90" width="260" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- ══ ZONE 2: AGENT LAYER  y=226-986 ══ -->
+        <mxCell id="z2bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a0a1e;strokeColor=#4444a0;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="16" y="226" width="1868" height="760" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2lbl" value="AGENT LAYER" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#6060c0;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="28" y="230" width="200" height="18" as="geometry"/>
+        </mxCell>
+
+        <!-- ── PRE-RUN  x=28-296 ── -->
+        <mxCell id="pre_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a1428;strokeColor=#304870;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="28" y="254" width="268" height="718" as="geometry"/>
+        </mxCell>
+        <mxCell id="pre_lbl" value="PRE-RUN" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontColor=#5080a0;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="28" y="260" width="268" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="cli" value="&lt;b&gt;CLI  +  scope.yaml&lt;/b&gt;&lt;br/&gt;--target-url  --scope-file"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0c2440;fontColor=#80b8e8;strokeColor=#3060a8;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="44" y="284" width="236" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="probe" value="&lt;b&gt;probe.py&lt;/b&gt;&lt;br/&gt;port scan · HTTP fingerprint"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0c2440;fontColor=#80b8e8;strokeColor=#3060a8;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="44" y="372" width="236" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="fing" value="&lt;b&gt;fingerprint.py&lt;/b&gt;&lt;br/&gt;tech stack · framework detect"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0c2440;fontColor=#80b8e8;strokeColor=#3060a8;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="44" y="462" width="236" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="disc" value="&lt;b&gt;discovery.py&lt;/b&gt;&lt;br/&gt;crawl + sitemap · route list"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0c2440;fontColor=#80b8e8;strokeColor=#3060a8;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="44" y="552" width="236" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="drift" value="&lt;b&gt;Drift Detection&lt;/b&gt;&lt;br/&gt;compare fingerprints vs baseline"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0c2440;fontColor=#80b8e8;strokeColor=#3060a8;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="44" y="642" width="236" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="mem" value="&lt;b&gt;Long-term Memory&lt;/b&gt;&lt;br/&gt;pgvector · pentest_runs&lt;br/&gt;past runs + fingerprints"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0c1830;fontColor=#60a8d8;strokeColor=#203860;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="44" y="733" width="236" height="75" as="geometry"/>
+        </mxCell>
+
+        <!-- ── MAIN RUN  x=314-1150 ── -->
+        <mxCell id="main_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0d0d22;strokeColor=#5050a0;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="314" y="254" width="836" height="718" as="geometry"/>
+        </mxCell>
+        <mxCell id="main_lbl" value="MAIN RUN — LangGraph StateGraph" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontColor=#6060c0;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="314" y="260" width="836" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="plan" value="&lt;b&gt;planner_node&lt;/b&gt;&lt;br/&gt;fingerprint + scope → test_plan&lt;br/&gt;PlanItem list · once per scan"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0c2340;fontColor=#d0e8ff;strokeColor=#4a8fc4;strokeWidth=2;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="500" y="284" width="280" height="78" as="geometry"/>
+        </mxCell>
+        <!-- ReAct zone  x=326-1138, y=382-758 -->
+        <mxCell id="react_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#050518;strokeColor=#4040a0;strokeWidth=1;strokeStyle=dashed;" vertex="1" parent="1">
+          <mxGeometry x="326" y="382" width="812" height="376" as="geometry"/>
+        </mxCell>
+        <mxCell id="react_lbl" value="ReAct Executor Loop" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#5050a0;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="334" y="387" width="200" height="16" as="geometry"/>
+        </mxCell>
+        <mxCell id="llm" value="&lt;b&gt;llm_node&lt;/b&gt;&lt;br/&gt;build_system_prompt v2&lt;br/&gt;gpt-4o-mini via LiteLLM · temperature=0"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0c2340;fontColor=#d0e8ff;strokeColor=#4a8fc4;strokeWidth=2;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="346" y="414" width="280" height="78" as="geometry"/>
+        </mxCell>
+        <!-- llm right=626, bottom=492 -->
+        <mxCell id="tools" value="&lt;b&gt;tools_node&lt;/b&gt; · 30 tools&lt;br/&gt;auth · injection · access&lt;br/&gt;headers · disclosure · ratelimit"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#200c3a;fontColor=#e0d0f8;strokeColor=#8f4ac4;strokeWidth=2;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="810" y="408" width="280" height="90" as="geometry"/>
+        </mxCell>
+        <!-- tools left=810, right=1090, top=408, bottom=498 -->
+        <mxCell id="sum" value="&lt;b&gt;summarize_node&lt;/b&gt;&lt;br/&gt;compress history · keeps recent msgs"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#200c3a;fontColor=#e0d0f8;strokeColor=#8f4ac4;strokeWidth=2;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="810" y="574" width="280" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="eval" value="&lt;b&gt;evaluate_node&lt;/b&gt;&lt;br/&gt;v2: module coverage check&lt;br/&gt;v1: 8-step auth check · max 2 retries"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a1500;fontColor=#f0e0d0;strokeColor=#c48f4a;strokeWidth=2;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="386" y="796" width="280" height="78" as="geometry"/>
+        </mxCell>
+        <!-- eval left=386, right=666, top=796, bottom=874 -->
+        <mxCell id="rep" value="&lt;b&gt;report_node&lt;/b&gt;&lt;br/&gt;PentestReport JSON + Markdown&lt;br/&gt;CVSS Finding list · EvaluationResult"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#002a14;fontColor=#d0f0e0;strokeColor=#4ac48f;strokeWidth=2;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="786" y="796" width="280" height="78" as="geometry"/>
+        </mxCell>
+
+        <!-- ── TOOL POOL  x=1168-1456 ── -->
+        <mxCell id="tp_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a1428;strokeColor=#304870;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="1168" y="254" width="288" height="718" as="geometry"/>
+        </mxCell>
+        <mxCell id="tp_lbl" value="TOOL POOL" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontColor=#5080a0;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1168" y="260" width="288" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="tp1" value="&lt;b&gt;HTTP Primitives&lt;/b&gt;&lt;br/&gt;http.get / http.post / http.put"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0c2440;fontColor=#80b8e8;strokeColor=#3060a8;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1186" y="284" width="252" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="tp2" value="&lt;b&gt;Attack Modules&lt;/b&gt;&lt;br/&gt;injection  ·  access_control&lt;br/&gt;headers  ·  disclosure&lt;br/&gt;rate_limiting  ·  auth"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a0c30;fontColor=#c0a8e8;strokeColor=#6040a0;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1186" y="369" width="252" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="tp3" value="&lt;b&gt;MCP Client&lt;/b&gt;&lt;br/&gt;dynamic tool relay"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a3a;fontColor=#c0c0ff;strokeColor=#5050a0;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1186" y="479" width="252" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="tp4" value="&lt;b&gt;State Tools&lt;/b&gt;&lt;br/&gt;list_results · get_summary&lt;br/&gt;check_coverage · log_anomaly"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0c2440;fontColor=#80b8e8;strokeColor=#3060a8;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1186" y="564" width="252" height="78" as="geometry"/>
+        </mxCell>
+
+        <!-- ── OBSERVABILITY  x=1474-1868 ── -->
+        <mxCell id="obs_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0f0a28;strokeColor=#604870;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="1474" y="254" width="394" height="718" as="geometry"/>
+        </mxCell>
+        <mxCell id="obs_lbl" value="OBSERVABILITY" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontColor=#8060c0;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1474" y="260" width="394" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="otel" value="&lt;b&gt;otel-collector&lt;/b&gt;&lt;br/&gt;traces + metrics + logs"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a0a38;fontColor=#d0b8f8;strokeColor=#7048c8;strokeWidth=2;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1494" y="284" width="330" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="tempo" value="&lt;b&gt;Grafana Tempo&lt;/b&gt;&lt;br/&gt;distributed tracing backend"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a0a38;fontColor=#d0b8f8;strokeColor=#7048c8;strokeWidth=2;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1494" y="374" width="330" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="prom" value="&lt;b&gt;Prometheus&lt;/b&gt;&lt;br/&gt;metrics scraping :9090"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a0a38;fontColor=#d0b8f8;strokeColor=#7048c8;strokeWidth=2;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1494" y="464" width="330" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="graf" value="&lt;b&gt;Grafana :3000&lt;/b&gt;&lt;br/&gt;dashboards · alerts"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a0a38;fontColor=#d0b8f8;strokeColor=#7048c8;strokeWidth=2;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1494" y="554" width="330" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- ══ ZONE 3: INFRASTRUCTURE  y=1004-1224 ══ -->
+        <mxCell id="z3bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a1000;strokeColor=#304820;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="16" y="1004" width="1868" height="220" as="geometry"/>
+        </mxCell>
+        <mxCell id="z3lbl" value="INFRASTRUCTURE" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#507840;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="28" y="1008" width="260" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="litellm" value="&lt;b&gt;LiteLLM Proxy :4000&lt;/b&gt;&lt;br/&gt;routing · fallback · semantic cache"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#101a00;fontColor=#c0e070;strokeColor=#607830;strokeWidth=2;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="50" y="1036" width="290" height="78" as="geometry"/>
+        </mxCell>
+        <mxCell id="pg" value="&lt;b&gt;PostgreSQL :5433&lt;/b&gt;&lt;br/&gt;LangGraph checkpoints&lt;br/&gt;pentest_memory · litellm spend"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#101a00;fontColor=#c0e070;strokeColor=#607830;strokeWidth=2;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="420" y="1036" width="290" height="78" as="geometry"/>
+        </mxCell>
+        <mxCell id="redis" value="&lt;b&gt;Redis :6379&lt;/b&gt;&lt;br/&gt;semantic cache · rate-limit counters"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#101a00;fontColor=#c0e070;strokeColor=#607830;strokeWidth=2;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="790" y="1036" width="290" height="78" as="geometry"/>
+        </mxCell>
+        <mxCell id="scraper" value="&lt;b&gt;Scraper :9222&lt;/b&gt;&lt;br/&gt;Playwright / Chromium headless"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#101a00;fontColor=#c0e070;strokeColor=#607830;strokeWidth=2;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="1036" width="290" height="78" as="geometry"/>
+        </mxCell>
+
+        <!-- ══ ARROWS ══ -->
+
+        <!-- tools → target-app: through inter-zone gap y=213 -->
+        <mxCell id="ea1" value="HTTP attacks"
+          style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#c04040;strokeWidth=2;fontColor=#e08080;fontSize=11;fontStyle=1;labelBackgroundColor=#160808;labelBorderColor=none;exitX=0.25;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;"
+          edge="1" source="tools" target="tgt" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="880" y="213"/>
+              <mxPoint x="170" y="213"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- tools → MCP Servers: through inter-zone gap y=217 (dashed) -->
+        <mxCell id="ea2" value="tool relay"
+          style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#5050a0;strokeWidth=2;fontColor=#a0a0d0;fontSize=11;strokeStyle=dashed;labelBackgroundColor=#080818;labelBorderColor=none;exitX=0.75;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;"
+          edge="1" source="tools" target="mcp_ext" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1020" y="217"/>
+              <mxPoint x="890" y="217"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- planner → llm -->
+        <mxCell id="ea3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#4a8fc4;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="plan" target="llm" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- llm → tools (tool calls) -->
+        <mxCell id="ea4" value="tool_calls" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8f4ac4;strokeWidth=2;fontColor=#c0a0e0;fontSize=11;labelBackgroundColor=#0e0820;labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="llm" target="tools" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- tools → llm back (results): exit tools at exitY=0.25 (y≈430), waypoint above llm top at y=390
+             avoids overlap with ea7 loop-back which routes at y=453 -->
+        <mxCell id="ea5" value="results" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#4a8fc4;strokeWidth=2;fontColor=#8ab0d0;fontSize=11;labelBackgroundColor=#080e20;labelBorderColor=none;exitX=0;exitY=0.25;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;" edge="1" source="tools" target="llm" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="718" y="390"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- tools → summarize -->
+        <mxCell id="ea6" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8f4ac4;strokeWidth=2;strokeStyle=dashed;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="tools" target="sum" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- sum → llm loop back: through gap between tools-left(810) and llm-right(626) -->
+        <mxCell id="ea7" value="loop back" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8f4ac4;strokeWidth=2;fontColor=#c0a0e0;fontSize=11;strokeStyle=dashed;labelBackgroundColor=#0e0820;labelBorderColor=none;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="sum" target="llm" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="720" y="606"/>
+              <mxPoint x="720" y="453"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- llm → evaluate -->
+        <mxCell id="ea8" value="final answer" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#c48f4a;strokeWidth=2;fontColor=#e0c080;fontSize=11;labelBackgroundColor=#140e00;labelBorderColor=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="llm" target="eval" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- evaluate → report -->
+        <mxCell id="ea9" value="approved" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#4ac48f;strokeWidth=2;fontColor=#80d0a8;fontSize=11;labelBackgroundColor=#001408;labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="eval" target="rep" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- eval → llm retry: down left margin at x=292 -->
+        <mxCell id="ea10" value="retry" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#c44a4a;strokeWidth=2;fontColor=#e08080;fontSize=11;strokeStyle=dashed;labelBackgroundColor=#160808;labelBorderColor=none;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="eval" target="llm" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="292" y="835"/>
+              <mxPoint x="292" y="453"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- fingerprint → planner -->
+        <mxCell id="ea11" value="fingerprint" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#3060a8;strokeWidth=1;fontColor=#6090c8;fontSize=11;labelBackgroundColor=#080e20;labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="fing" target="plan" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- llm → LiteLLM: exit llm bottom, drop to y=720 (gap between drift bottom=707 and mem top=733),
+             cross left to x=36 (clear of pre-run cards starting at x=44), down to inter-zone gap, into litellm top.
+             Keeps this path separate from ea10 retry which uses x=292 corridor. -->
+        <mxCell id="ea12" value="LLM calls" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#607830;strokeWidth=2;fontColor=#a0c050;fontSize=11;labelBackgroundColor=#080e00;labelBorderColor=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="llm" target="litellm" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="486" y="720"/>
+              <mxPoint x="36" y="720"/>
+              <mxPoint x="36" y="1010"/>
+              <mxPoint x="195" y="1010"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- LiteLLM → AI Providers: exit litellm TOP, go up through inter-zone gap at y=996 (between
+             agent layer bottom=986 and infra top=1004), then far-right margin x=1875 (outside obs_bg right=1868),
+             then up to y=88 and into ai_prov top. Avoids crossing pg/redis/scraper at y=1036-1114. -->
+        <mxCell id="ea13" value="LLM API calls" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#607830;strokeWidth=2;strokeStyle=dashed;fontColor=#a0c050;fontSize=11;labelBackgroundColor=#080e00;labelBorderColor=none;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="litellm" target="ai_prov" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="195" y="996"/>
+              <mxPoint x="1875" y="996"/>
+              <mxPoint x="1875" y="88"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- report → PostgreSQL -->
+        <mxCell id="ea14" value="store" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#607830;strokeWidth=1;fontColor=#a0c050;fontSize=11;strokeStyle=dashed;labelBackgroundColor=#080e00;labelBorderColor=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="rep" target="pg" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- otel → tempo, prom; prom,tempo → grafana -->
+        <mxCell id="ea15" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#7048c8;strokeWidth=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="otel" target="tempo" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ea16" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#7048c8;strokeWidth=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="otel" target="prom" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1659" y="350"/>
+              <mxPoint x="1659" y="464"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ea17" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#7048c8;strokeWidth=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="prom" target="graf" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ea18" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#7048c8;strokeWidth=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="tempo" target="graf" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1609" y="440"/>
+              <mxPoint x="1609" y="554"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ══ LEGEND ══ -->
+        <mxCell id="leg_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#050510;strokeColor=#4040a0;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="1494" y="650" width="330" height="285" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg_t" value="LEGEND" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#8080c0;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1512" y="660" width="150" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="ll1" value="→  HTTP attack / forward edge" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#e08080;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1512" y="694" width="295" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="ll2" value="→  LLM call / infra connection" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#a0c050;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1512" y="718" width="295" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="ll3" value="⇢  retry / back-edge (dashed)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#e08080;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1512" y="742" width="295" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="ll4" value="- -  summarize loop" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#c0a0e0;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1512" y="766" width="295" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="ll5" value="■  blue  =  agent core (LLM + planner)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#8ab0d0;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1512" y="796" width="295" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="ll6" value="■  purple  =  tool / ReAct execution" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#c0a0e0;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1512" y="820" width="295" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="ll7" value="■  orange  =  evaluation node" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#f0e0d0;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1512" y="844" width="295" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="ll8" value="■  green  =  report / target / infra" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#d0f0e0;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1512" y="868" width="295" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="ll9" value="■  violet  =  observability stack" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#d0b8f8;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1512" y="892" width="295" height="20" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

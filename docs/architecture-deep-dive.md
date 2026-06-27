@@ -12,32 +12,62 @@
 **Agent graph (LangGraph):**
 ![Agent Graph](agent-graph.png)
 
+### Agent graph (Phase 4 — ASCII)
+
+```
+START
+  │
+  ▼
+planner_node  ◄── reads fingerprint + scope via structured LLM output
+  │                produces test_plan: list[PlanItem]
+  ▼
+llm_node ◄──────────────────────────────────────────────────────────┐
+  │                                                                  │
+  ├─ tool_calls present? ──► tools_node                              │ ReAct loop
+  │                              │                                   │
+  │                    len(messages) > threshold?                    │
+  │                         │           │                            │
+  │                    summarize_node  llm_node ─────────────────────┘
+  │                         │
+  │                    llm_node ──────────────────────────────────────┐
+  │                                                                   │
+  └─ no tool calls ──► evaluate_node                                  │
+                            │                                         │
+                  approved or max retries?                            │
+                         │         │                                  │
+                    report_node  llm_node (corrective pass) ──────────┘
+                         │
+                        END
+```
+
 ---
 
 ## Table of Contents
 
 1. [Startup Sequence](#1-startup-sequence--agentmainpy)
 2. [Custom LangGraph Graph](#2-custom-langgraph-graph--agentgraphpy)
-3. [Summary Node](#3-summary-node--agentnodessummarizepy)
-4. [Evaluation Node](#4-evaluation-node--agentnodesevaluatepy)
-5. [The System Prompt](#5-the-system-prompt--agentpromptspy)
-6. [HTTP Tools](#6-http-tools--agenttoolspy)
-7. [The 8-Step Test Protocol](#7-the-8-step-test-protocol)
-8. [Error Handling and Autonomous Decisions](#8-error-handling-and-autonomous-decisions)
-9. [The Three Memory Layers](#9-the-three-memory-layers)
-10. [Drift Detection & Site Fingerprinting](#10-drift-detection--site-fingerprinting)
-11. [Frontend Scraping](#11-frontend-scraping--agentscrapepy)
-12. [LiteLLM AI Gateway](#12-litellm-ai-gateway--litellmconfigyaml)
-13. [MCP Client](#13-mcp-client--agentmcp_clientpy)
-14. [Observability Stack](#14-observability-stack)
-15. [Report Assembly](#15-report-assembly--agentreportpy)
-16. [Docker Infrastructure](#16-docker-infrastructure--11-services)
+3. [Planner Node](#3-planner-node--agentnodesplannerpy)
+4. [Scope Config](#4-scope-config--agentscopepy)
+5. [Summary Node](#5-summary-node--agentnodessummarizepy)
+6. [Evaluation Node](#6-evaluation-node--agentnodesevaluatepy)
+7. [The System Prompt](#7-the-system-prompt--agentpromptspy)
+8. [HTTP Tools & Attack Modules](#8-http-tools--attack-modules)
+9. [The 8-Step Test Protocol (v1 Legacy Mode)](#9-the-8-step-test-protocol-v1-legacy-mode)
+10. [Error Handling and Autonomous Decisions](#10-error-handling-and-autonomous-decisions)
+11. [The Three Memory Layers](#11-the-three-memory-layers)
+12. [Drift Detection & Site Fingerprinting](#12-drift-detection--site-fingerprinting)
+13. [Frontend Scraping](#13-frontend-scraping--agentscrapepy)
+14. [LiteLLM AI Gateway](#14-litellm-ai-gateway--litellmconfigyaml)
+15. [MCP Client](#15-mcp-client--agentmcp_clientpy)
+16. [Observability Stack](#16-observability-stack)
+17. [Report Assembly](#17-report-assembly--agentreportpy)
+18. [Docker Infrastructure](#18-docker-infrastructure--11-services)
 
 ---
 
 ## 1. Startup Sequence — `agent/main.py`
 
-When Docker starts the agent container, the entrypoint runs `python -m agent.main`. The Click CLI resolves environment variables and delegates to `_run()` via `asyncio.run()`. Ten steps always execute in this fixed order:
+When Docker starts the agent container, the entrypoint runs `python -m agent.main`. The Click CLI resolves environment variables and delegates to `_run()` via `asyncio.run()`. Eleven steps always execute in this fixed order:
 
 | # | Step | What happens |
 |---|---|---|
@@ -45,12 +75,13 @@ When Docker starts the agent container, the entrypoint runs `python -m agent.mai
 | 2 | **Telemetry** | `setup_telemetry()` — OTel `TracerProvider`, root span `agent.run`, `OTLPSpanExporter`, `LangchainInstrumentor`, `HTTPXClientInstrumentor` |
 | 3 | **New Password** | `AGENT_NEW_PASSWORD` env var, or `secrets.token_urlsafe(16)` generated at runtime |
 | 4 | **Thread ID** | Unique UUID per run; if `--thread-id` is passed, resumes the existing checkpoint in Postgres |
-| 5 | **Long-term Memory** | `retrieve_similar_runs(target_url, k=3)` — returns top-3 past run summaries **and** the most recent stored `SiteFingerprint` |
-| 6 | **Site Probe** | `probe_site(target_url)` — OpenAPI fetch + unauthenticated HTTP probe + frontend scrape |
-| 7 | **Drift + OpenAPI context** | `compare_fingerprints()` → `drift_context`; `build_openapi_context()` → `openapi_context` for system prompt |
-| 8 | **Build Graph** | `build_graph()` — constructs the LLM, Postgres checkpointer, MCP tools, HTTP tools, and `StateGraph` |
-| 9 | **Run Graph** | `graph.ainvoke(initial_state, config={thread_id})` — starts the 5-node graph |
-| 10 | **Store Memory** | `store_run(report, target_url, fingerprint)` — stores report embedding + current fingerprint in pgvector |
+| 5 | **Scope** | `load_scope(scope_file)` — reads YAML scope config (`--scope-file` / `SCOPE_FILE`); defaults to permissive `ScopeConfig()` if not provided |
+| 6 | **Long-term Memory** | `retrieve_similar_runs(target_url, k=3)` — returns top-3 past run summaries **and** the most recent stored `SiteFingerprint` |
+| 7 | **Site Probe** | `probe_site(target_url)` — OpenAPI fetch + unauthenticated HTTP probe + frontend scrape |
+| 8 | **Drift + OpenAPI context** | `compare_fingerprints()` → `drift_context`; `build_openapi_context()` → `openapi_context` for system prompt |
+| 9 | **Build Graph** | `build_graph()` — constructs the LLM, Postgres checkpointer, MCP tools, HTTP tools, and `StateGraph` |
+| 10 | **Run Graph** | `graph.ainvoke(initial_state, config={thread_id})` — starts the 6-node graph (planner + executor loop) |
+| 11 | **Store Memory** | `store_run(report, target_url, fingerprint)` — stores report embedding + current fingerprint in pgvector |
 
 > **Critical ordering:** Step 2 (telemetry) must happen before any LLM or HTTP calls. `LangchainInstrumentor` and `HTTPXClientInstrumentor` install themselves via global monkey-patch. If called after the first invocations they do not correctly instrument already-created spans.
 
@@ -58,37 +89,19 @@ When Docker starts the agent container, the entrypoint runs `python -m agent.mai
 
 ## 2. Custom LangGraph Graph — `agent/graph.py`
 
-The agent uses a fully custom `StateGraph` with five nodes and conditional edges. This replaces the earlier `create_react_agent` shortcut and gives precise control over the message flow, enabling the `summarize_node` and `evaluate_node` to be wired into the loop.
+The agent uses a fully custom `StateGraph` with six nodes and conditional edges. This gives precise control over the message flow and enables the `planner_node`, `summarize_node`, and `evaluate_node` to be wired into the graph.
 
 ### Node topology
 
 ```
-START
-  │
-  ▼
-llm_node ◄──────────────────────────────────────────────────┐
-  │                                                          │
-  ├─ tool_calls present? ──► tools_node                      │ ReAct loop
-  │                              │                           │
-  │                    len(messages) > threshold?            │
-  │                         │           │                    │
-  │                    summarize_node  llm_node ─────────────┘
-  │                         │
-  │                    llm_node ────────────────────────────────┐
-  │                                                             │
-  └─ no tool calls ──► evaluate_node                            │
-                            │                                   │
-                  approved or max retries?                      │
-                         │         │                            │
-                    report_node  llm_node (corrective pass) ────┘
-                         │
-                        END
+START → planner_node → llm_node ⟺ tools_node → evaluate_node → report_node → END
 ```
 
 ### Conditional edges
 
 | Source node | Condition | Routes to |
 |---|---|---|
+| `planner_node` | Always | `llm_node` |
 | `llm_node` | Last message has `tool_calls` | `tools_node` |
 | `llm_node` | No `tool_calls` in last message | `evaluate_node` |
 | `tools_node` | Non-system messages > `SUMMARY_THRESHOLD` | `summarize_node` |
@@ -99,15 +112,115 @@ llm_node ◄──────────────────────�
 
 ### System prompt injection
 
-The system prompt is built and injected as a `SystemMessage` only on the **first** invocation of `llm_node`. Subsequent calls see the already-prepended `SystemMessage` at index 0 of the messages list and skip re-injection. The prompt includes `drift_context` from the fingerprint comparison.
+The system prompt is built and injected as a `SystemMessage` only on the **first** invocation of `llm_node`. Subsequent calls see the already-prepended `SystemMessage` at index 0 of the messages list and skip re-injection. `build_system_prompt()` routes to the v2 executor prompt when `fingerprint` and `test_plan` are present (set by `planner_node`), and falls back to the legacy auth prompt otherwise.
 
 ---
 
-## 3. Summary Node — `agent/nodes/summarize.py`
+## 3. Planner Node — `agent/nodes/planner.py`
 
 ### Purpose
 
-The ReAct loop accumulates one `AIMessage` + N `ToolMessage`s per iteration. For an 8-step protocol with validation calls this easily reaches 15–20 messages. Together with the system prompt this can approach the context window of smaller models and increases cost on every iteration.
+`planner_node` runs **once at the start of every scan**, before the ReAct executor loop. It reads the site fingerprint (from `probe_site` + recon) and the scope config, calls the LLM with structured output, and produces a prioritised `test_plan` — a list of `PlanItem` objects telling the executor which attack modules to run, on which paths, in what priority order.
+
+### Output schema
+
+```python
+class PlanItem(BaseModel):
+    module: str          # auth | injection | access | headers | disclosure | ratelimit
+    tools: list[str]     # Layer 2 tool names to invoke
+    priority: Literal["critical", "high", "medium", "low"]
+    paths: list[str]     # target paths (max 5)
+    reason: str          # one-sentence justification
+    config: dict         # optional per-module config
+```
+
+The `PlanItem` list is stored in `state["test_plan"]` and consumed by both the executor (`build_system_prompt`) and the evaluator (`evaluate_node` v2 mode).
+
+### How it works
+
+```
+fingerprint (state) ──┐
+                       ├─► _build_human_msg() ──► ChatOpenAI.with_structured_output(_TestPlan)
+scope (state) ─────────┘                                │
+                                                         ▼
+                                               _TestPlan.items → list[dict]
+                                                         │
+                                                state["test_plan"]
+```
+
+1. Reads `state["fingerprint"]` and `state["scope"]` (both dicts).
+2. Formats them into a human message listing API type, endpoints, auth mechanisms, tech stack, enabled modules, and excluded paths.
+3. Calls the LLM via `with_structured_output(_TestPlan)` — response is parsed directly into Pydantic, no JSON wrangling needed.
+4. Serialises `PlanItem` objects to dicts and returns `{"test_plan": items}`.
+
+### Planning rules (system prompt)
+
+- Only include modules that are in `scope.active_modules`.
+- Priority ordering: `critical > high > medium > low`.
+- List specific tool names from Layer 2; do not reference MCP tool names (those are discovered at runtime).
+- If no endpoints were discovered, fall back to common paths: `/`, `/api`, `/login`, `/health`.
+
+---
+
+## 4. Scope Config — `agent/scope.py`
+
+### Purpose
+
+`ScopeConfig` is a Pydantic model that constrains what the agent is allowed to test. It is loaded from a YAML file at startup and stored in `state["scope"]` as a dict.
+
+### Schema
+
+```python
+class ScopeConfig(BaseModel):
+    allowed_hosts: list[str]        # empty = all hosts allowed
+    excluded_paths: list[str]       # paths the agent must not test
+    max_requests_per_tool: int      # default: 50
+    enabled_modules: list[str]      # default: all 6 modules
+    disabled_modules: list[str]     # default: none
+    severity_threshold: str         # minimum severity to report (default: "low")
+
+    @property
+    def active_modules(self) -> list[str]:
+        return [m for m in self.enabled_modules if m not in self.disabled_modules]
+```
+
+`to_dict()` adds an `active_modules` key to the serialised form so the planner and evaluator don't have to recompute it.
+
+### YAML example
+
+```yaml
+allowed_hosts:
+  - "api.example.com"
+excluded_paths:
+  - "/admin"
+  - "/internal"
+enabled_modules:
+  - auth
+  - injection
+  - headers
+disabled_modules: []
+max_requests_per_tool: 20
+severity_threshold: medium
+```
+
+### CLI flag
+
+```bash
+python -m agent.main --target-url http://api.example.com \
+                     --scope-file scope.yaml
+# or via env var:
+SCOPE_FILE=scope.yaml python -m agent.main ...
+```
+
+If `--scope-file` is not provided, a default `ScopeConfig()` is used — all 6 modules enabled, no path exclusions, 50 requests per tool, threshold `low`.
+
+---
+
+## 5. Summary Node — `agent/nodes/summarize.py`
+
+### Purpose
+
+The ReAct loop accumulates one `AIMessage` + N `ToolMessage`s per iteration. For a multi-module scan with many tool calls this can reach 30–50 messages. Together with the system prompt this approaches the context window of smaller models and increases cost on every iteration.
 
 ### How it works
 
@@ -138,23 +251,39 @@ else → route to llm_node
 
 ---
 
-## 4. Evaluation Node — `agent/nodes/evaluate.py`
+## 6. Evaluation Node — `agent/nodes/evaluate.py`
 
 ### Purpose
 
-The ReAct agent may stop prematurely, claim anomalies without evidence, or mislabel step statuses due to ambiguous tool output. The evaluation node acts as an **independent judge** that re-reads the full conversation and validates every claim before the report is emitted.
+The ReAct agent may stop prematurely, claim findings without evidence, or skip entire modules. The evaluation node acts as an **independent judge** that re-reads the full conversation and validates every claim before the report is emitted.
 
-### What it validates
+### Dual-mode operation
 
-| Check | Question |
-|---|---|
-| **Completeness** | Were all 7 required steps executed and validated? |
-| **Evidence** | Is each anomaly backed by explicit HTTP status + body evidence? |
-| **Consistency** | Do step statuses match the actual tool responses seen in messages? |
+The evaluator dispatches on whether `state["test_plan"]` is populated:
+
+| Mode | Trigger | What it validates |
+|---|---|---|
+| **v2 (general scan)** | `test_plan` is present (set by `planner_node`) | Module coverage: did every planned module get at least one tool call? Evidence quality per finding. |
+| **v1 (legacy auth)** | `test_plan` is `None` or absent | All 8 auth steps completed with correct HTTP status codes. |
+
+### v2 module coverage check
+
+```python
+_TOOL_TO_MODULE: dict[str, str] = {
+    "login_tool": "auth", "me_tool": "auth", ...,
+    "sqli_probe": "injection", "nosql_probe": "injection", ...,
+    "idor_probe": "access", ...,
+    "cors_check": "headers", ...,
+    "error_disclosure_probe": "disclosure", ...,
+    "rate_limit_check": "ratelimit", ...,
+}
+```
+
+`_build_module_summary(messages, test_plan)` scans all `ToolMessage` names in the conversation, maps each to its module via `_TOOL_TO_MODULE`, and produces a coverage table (planned vs. executed). This summary is prepended to the v2 eval prompt so the LLM can confirm coverage.
 
 ### Structured output
 
-The LLM is called with `with_structured_output(EvaluationResult)` producing a deterministic Pydantic model:
+The LLM is called with `with_structured_output(EvaluationResult)`:
 
 ```python
 class EvaluationResult(BaseModel):
@@ -169,8 +298,8 @@ class EvaluationResult(BaseModel):
 ### Retry mechanism
 
 If `approved=False` and `eval_attempts < MAX_EVAL_RETRIES`:
-1. A `HumanMessage` is appended with precise feedback (which steps are missing, which anomalies lack evidence)
-2. The graph routes back to `llm_node` for a **corrective pass** — the LLM sees the feedback and can re-execute missing steps or revise its conclusions
+1. A `HumanMessage` is appended with precise feedback (which modules are missing, which findings lack evidence)
+2. The graph routes back to `llm_node` for a **corrective pass** — the LLM sees the feedback and can re-execute missing modules or revise its conclusions
 
 After `MAX_EVAL_RETRIES` (default: 2) the node force-approves with `confidence=0.5` and records outstanding issues in the `EvaluationResult` for the report — preventing infinite loops.
 
@@ -178,50 +307,92 @@ The final `EvaluationResult` is attached to the `PentestReport` in the `evaluati
 
 ---
 
-## 5. The System Prompt — `agent/prompts.py`
+## 7. The System Prompt — `agent/prompts.py`
 
-The system prompt acts as the agent's constitution — five sections the LLM must respect throughout execution:
+The system prompt is the agent's constitution. `build_system_prompt()` routes to one of two prompts based on state:
+
+```python
+def build_system_prompt(..., *, fingerprint, test_plan, scope) -> str:
+    if fingerprint and test_plan is not None:
+        return build_executor_prompt(...)   # v2 — general scan
+    return _LEGACY_AUTH_PROMPT              # v1 — hardcoded auth flow
+```
+
+The `is not None` check (not truthiness) is intentional: an empty `test_plan = []` still signals that `planner_node` ran and v2 mode should be used.
+
+### v2 executor prompt sections
+
+| Section | Content |
+|---|---|
+| **Objective** | Execute the test plan modules in priority order using the available tools |
+| **Fingerprint** | JSON dump of the site fingerprint from recon (api_type, endpoints, auth_mechanisms, tech_stack) |
+| **Test Plan** | JSON dump of `PlanItem` list from `planner_node` |
+| **Scope** | Enabled modules, excluded paths, max requests per tool |
+| **Credentials** | Username, current password, new password |
+| **Past Runs Context** | Top-3 reports from previous runs |
+| **Drift Context** | Result of `compare_fingerprints()` |
+| **MCP Note** | Present only when MCP servers are configured; lists discovered MCP tool names |
+
+### v1 legacy prompt sections
 
 | Section | Content |
 |---|---|
 | **Objective** | 8 ordered steps with specific tools and expected validations |
-| **Error Handling Rules** | 401 on login → abort; 429 → wait; 5xx → retry ×3; token expired → re-auth; 404 → flag `structural_change` |
+| **Error Handling Rules** | 401 → abort; 429 → wait; 5xx → retry ×3; token expired → re-auth; 404 → flag anomaly |
 | **Anomaly Detection** | `weak_password_policy`, `session_not_invalidated`, `token_not_rotated`, `rate_limiting_absent`, `structural_change` |
-| **Discovered API Endpoints** | Summary from `/openapi.json` — operations and params injected at runtime |
-| **Site Drift Context** | Result of `compare_fingerprints()` — API, OpenAPI contract, and frontend diffs |
-| **Past Runs Context** | Top-3 reports from previous runs formatted as `[Run N]: ...` |
-
-The prompt is built dynamically by `build_system_prompt()`, which accepts
-`drift_context` and `openapi_context`. If either is missing, a placeholder is
-injected so the LLM always has a complete, consistent prompt.
+| **Discovered API Endpoints** | Summary from `/openapi.json` injected at runtime |
+| **Site Drift Context** | Result of `compare_fingerprints()` |
+| **Past Runs Context** | Top-3 past report summaries |
 
 ---
 
-## 6. HTTP Tools — `agent/tools.py`
+## 8. HTTP Tools & Attack Modules
 
-The four tools are async Python functions decorated with `@tool` from LangChain. The decorator automatically extracts the name, description (docstring), and input schema (type annotations) to expose to the LLM as JSON Schema.
+The agent exposes **30 tools total** across three layers. All Layer 2 attack tools are async Python functions decorated with `@tool` from LangChain.
 
-| Tool | Input | What the LLM expects back |
+### Layer 1 — Primitives (`agent/tools/primitives.py`)
+
+| Tool | Purpose |
+|---|---|
+| `http_get` | GET request with configurable headers and params |
+| `http_post` | POST request with body and content-type control |
+| `http_put` | PUT request |
+| `http_delete` | DELETE request |
+| `set_session_header` | Persist a header across all subsequent requests |
+| `clear_session_headers` | Reset the persistent header store |
+
+### Layer 2 — Attack Modules (`agent/tools/attacks/`)
+
+| Module | File | Tools |
 |---|---|---|
-| `login_tool` | `username: str, password: str` | HTTP 200 + `token` field in response body |
-| `me_tool` | `token: str` | HTTP 200 + username = OK; HTTP 401 = invalid/expired (expected after password change or logout) |
-| `change_password_tool` | `token: str, current_password: str, new_password: str` | HTTP 200 = success; invalidates all sessions |
-| `logout_tool` | `token: str` | HTTP 200 = logout; follow-up `me_tool` must return 401 |
+| **Auth** | `auth.py` | `login_tool`, `me_tool`, `change_password_tool`, `logout_tool`, `jwt_analyze`, `brute_force_check`, `session_fixation_check`, `token_entropy_check` |
+| **Injection** | `injection.py` | `sqli_probe`, `nosql_probe`, `ssti_probe`, `xss_probe` |
+| **Access Control** | `access.py` | `idor_probe`, `bola_probe`, `privilege_escalation_check` |
+| **Headers** | `headers.py` | `cors_check`, `security_headers_check`, `csp_check` |
+| **Disclosure** | `disclosure.py` | `error_disclosure_probe`, `pii_scan`, `path_traversal_probe`, `http_methods_check` |
+| **Rate Limiting** | `ratelimit.py` | `rate_limit_check`, `ip_bypass_check` |
 
-### Implementation details
+**Total: 6 primitives + 24 attack tools = 30 tools bound to the LLM**
+
+### Layer 3 — MCP Tools (optional, discovered at startup)
+
+See [MCP Client](#15-mcp-client--agentmcp_clientpy). MCP tools are appended to the flat tool list at runtime; the planner is informed they may exist but does not name them.
+
+### Common implementation details
 
 | Aspect | Detail |
 |---|---|
-| HTTP client | `httpx.AsyncClient` with configurable timeout (default 10s) |
+| HTTP client | `httpx.AsyncClient` via Layer 1 primitives with configurable timeout |
 | Base URL | `ContextVar` — thread-safe and injectable in tests |
-| Normalised response | `_result()` returns `{step, http_status, body, ok}` |
+| Result shape | `{step, http_status, body, ok}` or module-specific `{vulnerable, evidence, ...}` |
 | Logging | Each tool logs before and after with structlog + OTel `trace_id` |
-| Custom OTel spans | `pentest.login`, `pentest.validate_session`, `pentest.change_password`, `pentest.logout` with `http.status_code` attributes |
-| Auto-instrumentation | `HTTPXClientInstrumentor` creates child httpx spans for every request |
+| Custom OTel spans | `pentest.login`, `pentest.validate_session`, etc. with `http.status_code` attributes |
 
 ---
 
-## 7. The 8-Step Test Protocol
+## 9. The 8-Step Test Protocol (v1 Legacy Mode)
+
+When the agent runs without a fingerprint or scope (i.e. `planner_node` is absent or produces no plan), it falls back to the legacy v1 auth-only flow. This is preserved for backward compatibility with existing target apps that only expose the `/login`, `/me`, `/change-password`, `/logout` surface.
 
 | Step | Tool | Endpoint | Expected HTTP | Notes |
 |---|---|---|---|---|
@@ -234,11 +405,13 @@ The four tools are async Python functions decorated with `@tool` from LangChain.
 | 7 · Logout | `logout_tool` | POST /logout | 200 | Invalidate session |
 | 8 · Validate Logout | `me_tool` | GET /me (new token) | **401** | Confirms token rejected after logout |
 
+In v2 mode, the executor uses the `test_plan` from `planner_node` instead of this fixed protocol.
+
 ---
 
-## 8. Error Handling and Autonomous Decisions
+## 10. Error Handling and Autonomous Decisions
 
-The LLM is the decision-maker. When it receives a tool result with `ok: false`, it consults the system prompt rules and decides. Decisions are recorded in the final report as the `decision` field on each step.
+The LLM is the decision-maker. When it receives a tool result with `ok: false` or `vulnerable: true`, it consults the system prompt rules and decides. Decisions are recorded in the final report.
 
 | Scenario | LLM Decision |
 |---|---|
@@ -247,11 +420,12 @@ The LLM is the decision-maker. When it receives a tool result with `ok: false`, 
 | Token expired mid-flow (401 on authenticated endpoint) | Re-authenticate and resume from failed step |
 | Endpoint returns 404 | Try reasonable alternatives; flag `structural_change` anomaly |
 | Unexpected HTTP (e.g. 422) | Log + graceful abort |
-| `evaluate_node` rejects conclusion | Address feedback items, re-execute missing steps |
+| `evaluate_node` rejects conclusion | Address feedback items, re-execute missing modules |
+| Module not in `scope.active_modules` | Skip — do not invoke any tools for that module |
 
 ---
 
-## 9. The Three Memory Layers
+## 11. The Three Memory Layers
 
 ### Runtime Memory (ephemeral, in-context)
 
@@ -288,7 +462,7 @@ At the end of each run, `store_run()` in `agent/memory.py` embeds the final JSON
 
 ---
 
-## 10. Drift Detection & Site Fingerprinting
+## 12. Drift Detection & Site Fingerprinting
 
 Before each run, `probe_site()` in `agent/probe.py` builds a `SiteFingerprint` that captures the target's current behaviour. This fingerprint is compared against the one stored from the previous run. Any difference is summarised as a `drift_context` string and injected into the system prompt.
 
@@ -334,12 +508,15 @@ the standard protocol."
 
 | Field | Type | Purpose |
 |---|---|---|
+| `fingerprint` | `dict \| None` | v2 recon result: api_type, endpoints, auth_mechanisms, tech_stack |
+| `test_plan` | `list[dict] \| None` | Planner output: list of PlanItem dicts |
+| `scope` | `dict \| None` | Serialised ScopeConfig (includes `active_modules`) |
 | `drift_context` | `str \| None` | Drift report injected into the system prompt |
 | `openapi_context` | `str \| None` | Discovered endpoints summary injected into the system prompt |
 
 ---
 
-## 11. Frontend Scraping — `agent/scrape.py`
+## 13. Frontend Scraping — `agent/scrape.py`
 
 `scrape_frontend()` adds a **presentation-layer** fingerprint on top of the API probe. It only activates when the root URL returns `Content-Type: text/html`, making it a no-op for pure API targets.
 
@@ -397,7 +574,7 @@ Rendered forms (from Playwright) take precedence over static forms when both are
 
 ---
 
-## 12. LiteLLM AI Gateway — `litellm/config.yaml`
+## 14. LiteLLM AI Gateway — `litellm/config.yaml`
 
 The agent never calls the OpenAI API directly. It always points to `http://litellm-proxy:4000`, which behaves as an OpenAI-compatible endpoint.
 
@@ -414,7 +591,7 @@ The agent never calls the OpenAI API directly. It always points to `http://litel
 
 ---
 
-## 13. MCP Client — `agent/mcp_client.py`
+## 15. MCP Client — `agent/mcp_client.py`
 
 The Model Context Protocol allows the agent to discover tools from external servers without code changes. The agent acts as an **MCP Client** — it connects, discovers tools, and adds them to the tool pool.
 
@@ -423,7 +600,7 @@ The Model Context Protocol allows the agent to discover tools from external serv
 1. `MCP_SERVERS` env var is parsed as JSON — map of name → `{url, transport}`
 2. `MultiServerMCPClient` connects to each MCP server
 3. `client.get_tools()` returns a list of LangChain `BaseTool` instances
-4. `all_tools = HTTP_TOOLS + mcp_tools`
+4. `all_tools = HTTP_TOOLS + mcp_tools` (HTTP_TOOLS = all 30 built-in tools)
 5. `llm.bind_tools(all_tools)` exposes the full pool to the LLM
 
 Fails gracefully — if no MCP servers are configured or reachable, returns `[]`.
@@ -434,7 +611,7 @@ MCP_SERVERS='{"security-scanner": {"url": "http://mcp-scanner:8080/mcp", "transp
 
 ---
 
-## 14. Observability Stack
+## 16. Observability Stack
 
 Everything the agent does is automatically instrumented and visible in Grafana at `http://localhost:3000`.
 
@@ -443,7 +620,7 @@ Everything the agent does is automatically instrumented and visible in Grafana a
 | Each LLM call | model, tokens, latency, status | `LangchainInstrumentor` |
 | Each tool call | tool name, arguments, result | `LangchainInstrumentor` |
 | Each HTTP request (agent) | URL, method, status, latency | `HTTPXClientInstrumentor` (child spans) |
-| Pentest steps | `pentest.login`, `pentest.validate_session`, etc. | Custom spans in `agent/tools.py` |
+| Pentest steps | `pentest.login`, `pentest.validate_session`, etc. | Custom spans in `agent/tools/` |
 | Site probe | `agent.probe` wrapping OpenAPI + HTTP + scrape | Custom span in `agent/probe.py` |
 | Root run span | `agent.run` with target URL and username | `setup_telemetry()` in `agent/telemetry.py` |
 | LLM calls via LiteLLM | provider, model, cost | `success_callback: otel` in LiteLLM config |
@@ -455,8 +632,6 @@ The provisioned dashboard **Autonomous Pen Tester — Agent Overview** (`infra/g
 - Prometheus `up` stat panel for scrape target health
 
 To inspect a specific run: copy `trace_id` from logs → Grafana **Explore** → Tempo → paste ID.
-
-### Data pipeline
 
 ### Data pipeline
 
@@ -472,7 +647,7 @@ Clicking a latency spike in Grafana navigates directly to the Tempo trace via ex
 
 ---
 
-## 15. Report Assembly — `agent/report.py`
+## 17. Report Assembly — `agent/report.py`
 
 `report_node` is the last graph node. It calls `assemble_report(state, elapsed_ms)` which builds a `PentestReport` Pydantic model, attaches the `EvaluationResult` from `state["eval_result"]`, and serialises it.
 
@@ -494,6 +669,7 @@ Clicking a latency spike in Grafana navigates directly to the Tempo trace via ex
 | `elapsed_ms` | Wall-clock time from `_start_time` in `graph.py` |
 | `thread_id` | From `state["thread_id"]` |
 | `evaluation` | `EvaluationResult(**state["eval_result"])` — the judge's verdict |
+| `test_plan` | Echoed from `state["test_plan"]` — which modules were planned vs. executed |
 
 ### Output destinations
 
@@ -503,9 +679,11 @@ Clicking a latency spike in Grafana navigates directly to the Tempo trace via ex
 | `REPORT_OUTPUT_PATH` | Pretty-printed JSON (indent=2) | If env var set |
 | pgvector (`memory.py`) | JSON embedding + fingerprint metadata | After `report_node`, in `main.py` |
 
+> **Phase 5 (upcoming):** `report.py` will be extended to emit Markdown reports with executive summary, CVSS-scored findings table, per-finding evidence, and a remediation checklist.
+
 ---
 
-## 16. Docker Infrastructure — 11 Services
+## 18. Docker Infrastructure — 11 Services
 
 | Service | Image | Port | Purpose | Depends on |
 |---|---|---|---|---|
@@ -526,4 +704,4 @@ Clicking a latency spike in Grafana navigates directly to the Tempo trace via ex
 
 ---
 
-*Architecture deep-dive · Autonomous Pentesting Agent · May 2026*
+*Architecture deep-dive · Autonomous Pentesting Agent · Phase 4 complete · June 2026*

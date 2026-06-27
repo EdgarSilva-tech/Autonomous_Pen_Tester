@@ -1,0 +1,214 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="agent-graph" name="Agent Graph">
+    <mxGraphModel background="#0a0a1e" dx="1200" dy="900" grid="0" gridSize="10" guides="0" tooltips="0" connect="0" arrows="0" fold="0" page="0" pageScale="1" pageWidth="1500" pageHeight="1020" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="ttl" value="Autonomous Pen Tester — Agent Graph"
+          style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#d0d0e8;fontSize=20;fontStyle=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="250" y="18" width="900" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- ── Background zones (behind all nodes) ── -->
+        <mxCell id="plan_zone" value=""
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#070f1e;strokeColor=#304870;strokeWidth=1;strokeStyle=dashed;"
+          vertex="1" parent="1">
+          <mxGeometry x="480" y="144" width="420" height="122" as="geometry"/>
+        </mxCell>
+        <mxCell id="plan_zone_lbl" value="Planner — runs once per scan"
+          style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#506890;fontSize=11;"
+          vertex="1" parent="1">
+          <mxGeometry x="492" y="150" width="220" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="react_bg" value=""
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0d0d22;strokeColor=#5050a0;strokeWidth=1;strokeStyle=dashed;"
+          vertex="1" parent="1">
+          <mxGeometry x="480" y="272" width="750" height="468" as="geometry"/>
+        </mxCell>
+        <mxCell id="react_lbl" value="ReAct Executor Loop"
+          style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#5050a0;fontSize=11;"
+          vertex="1" parent="1">
+          <mxGeometry x="492" y="278" width="200" height="16" as="geometry"/>
+        </mxCell>
+
+        <!-- ── Nodes ── -->
+        <mxCell id="start" value="START"
+          style="ellipse;whiteSpace=wrap;html=1;fillColor=#1a3d1a;fontColor=#80ff80;strokeColor=#3aaf3a;fontSize=15;fontStyle=1;strokeWidth=2;"
+          vertex="1" parent="1">
+          <mxGeometry x="615" y="70" width="150" height="52" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="plan" value="&lt;b&gt;planner_node&lt;/b&gt;&lt;br/&gt;fingerprint + scope → test_plan&lt;br/&gt;PlanItem list · once per scan"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0c2340;fontColor=#d0e8ff;strokeColor=#4a8fc4;strokeWidth=2;fontSize=13;"
+          vertex="1" parent="1">
+          <mxGeometry x="530" y="172" width="320" height="72" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="llm" value="&lt;b&gt;llm_node&lt;/b&gt;&lt;br/&gt;build_system_prompt v2&lt;br/&gt;gpt-4o-mini via LiteLLM · temperature=0"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0c2340;fontColor=#d0e8ff;strokeColor=#4a8fc4;strokeWidth=2;fontSize=13;"
+          vertex="1" parent="1">
+          <mxGeometry x="530" y="302" width="320" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="dtool" value="tool_calls?"
+          style="rhombus;whiteSpace=wrap;html=1;fillColor=#111128;fontColor=#c0c0e0;strokeColor=#5050a0;fontSize=13;strokeWidth=2;"
+          vertex="1" parent="1">
+          <mxGeometry x="585" y="442" width="210" height="82" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="tools" value="&lt;b&gt;tools_node&lt;/b&gt; · 30 tools&lt;br/&gt;auth · injection · access&lt;br/&gt;headers · disclosure · ratelimit&lt;br/&gt;Layer 1+2 · MCP optional"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#200c3a;fontColor=#e0d0f8;strokeColor=#8f4ac4;strokeWidth=2;fontSize=13;"
+          vertex="1" parent="1">
+          <mxGeometry x="940" y="425" width="270" height="108" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="sum" value="&lt;b&gt;summarize_node&lt;/b&gt;&lt;br/&gt;compress history · keeps recent msgs"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#200c3a;fontColor=#e0d0f8;strokeColor=#8f4ac4;strokeWidth=2;fontSize=13;"
+          vertex="1" parent="1">
+          <mxGeometry x="940" y="605" width="270" height="68" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="eval" value="&lt;b&gt;evaluate_node&lt;/b&gt;&lt;br/&gt;v2: module coverage check&lt;br/&gt;v1: 8-step auth check · max 2 retries"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a1500;fontColor=#f0e0d0;strokeColor=#c48f4a;strokeWidth=2;fontSize=13;"
+          vertex="1" parent="1">
+          <mxGeometry x="160" y="495" width="275" height="82" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="dapp" value="approved?"
+          style="rhombus;whiteSpace=wrap;html=1;fillColor=#111128;fontColor=#c0c0e0;strokeColor=#5050a0;fontSize=13;strokeWidth=2;"
+          vertex="1" parent="1">
+          <mxGeometry x="198" y="652" width="200" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="rep" value="&lt;b&gt;report_node&lt;/b&gt;&lt;br/&gt;PentestReport JSON + Markdown&lt;br/&gt;CVSS Finding list · EvaluationResult"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#002a14;fontColor=#d0f0e0;strokeColor=#4ac48f;strokeWidth=2;fontSize=13;"
+          vertex="1" parent="1">
+          <mxGeometry x="170" y="808" width="285" height="78" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="end" value="END"
+          style="ellipse;whiteSpace=wrap;html=1;fillColor=#1a3d1a;fontColor=#80ff80;strokeColor=#3aaf3a;fontSize=15;fontStyle=1;strokeWidth=2;"
+          vertex="1" parent="1">
+          <mxGeometry x="615" y="940" width="150" height="52" as="geometry"/>
+        </mxCell>
+
+        <!-- ── ARROWS ── -->
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#4a8fc4;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="start" target="plan" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#4a8fc4;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="plan" target="llm" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#7070a8;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="llm" target="dtool" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- YES: label with dark bg -->
+        <mxCell id="e4" value="YES" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8f4ac4;strokeWidth=2;fontColor=#c0a0e0;fontSize=12;fontStyle=1;labelBackgroundColor=#0c0c20;labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="dtool" target="tools" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- NO: label with dark bg -->
+        <mxCell id="e5" value="NO" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#7070a8;strokeWidth=2;fontColor=#a0a0c8;fontSize=12;fontStyle=1;labelBackgroundColor=#0c0c20;labelBorderColor=none;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="dtool" target="eval" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- tools→llm back loop: label with dark bg -->
+        <mxCell id="e6" value="msgs ≤ THRESHOLD" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#4a8fc4;strokeWidth=2;fontColor=#8ab0d0;fontSize=11;labelBackgroundColor=#0c0c20;labelBorderColor=none;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="tools" target="llm" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1075" y="390"/>
+              <mxPoint x="910" y="390"/>
+              <mxPoint x="910" y="342"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- tools→summarize: label with dark bg -->
+        <mxCell id="e7" value="msgs &gt; THRESHOLD" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8f4ac4;strokeWidth=2;fontColor=#c0a0e0;fontSize=11;strokeStyle=dashed;labelBackgroundColor=#0c0c20;labelBorderColor=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="tools" target="sum" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- sum→llm loop back: label with dark bg, route through clear gap -->
+        <mxCell id="e8" value="loop back" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8f4ac4;strokeWidth=2;fontColor=#c0a0e0;fontSize=11;strokeStyle=dashed;labelBackgroundColor=#0c0c20;labelBorderColor=none;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="sum" target="llm" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="900" y="639"/>
+              <mxPoint x="900" y="342"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#c48f4a;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="eval" target="dapp" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- approved: label with dark bg -->
+        <mxCell id="e10" value="approved" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#4ac48f;strokeWidth=2;fontColor=#80d0a8;fontSize=12;fontStyle=1;labelBackgroundColor=#0c0c20;labelBorderColor=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="dapp" target="rep" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- retry path: NO label on the edge — standalone annotation instead -->
+        <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#c44a4a;strokeWidth=2;strokeStyle=dashed;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="dapp" target="llm" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="120" y="692"/>
+              <mxPoint x="120" y="342"/>
+              <mxPoint x="530" y="342"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <!-- "retry" as standalone label next to the left-side segment -->
+        <mxCell id="e11_lbl" value="retry"
+          style="text;html=1;strokeColor=none;fillColor=#0c0c20;align=left;verticalAlign=middle;fontColor=#e0a0a0;fontSize=12;fontStyle=3;rounded=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="128" y="505" width="52" height="22" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#4ac48f;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="rep" target="end" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ── LEGEND ── -->
+        <mxCell id="leg_bg" value=""
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#050510;strokeColor=#4040a0;strokeWidth=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="1100" y="710" width="355" height="265" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg_t" value="LEGEND"
+          style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#8080c0;fontSize=15;fontStyle=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="1118" y="724" width="150" height="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="l1" value="→  forward edge" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#8ab0d0;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1118" y="760" width="300" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="l2" value="⇢  back-edge (loop back)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#e0a0a0;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1118" y="788" width="300" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="l3" value="- -  summarize loop" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#c0a0e0;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1118" y="816" width="300" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="l4" value="◇  conditional edge" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#c0c0e0;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1118" y="844" width="300" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="l5" value="■  planner node (once per scan)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#8ab0d0;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1118" y="872" width="300" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="l6" value="■  evaluation node" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#f0e0d0;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1118" y="900" width="300" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="l7" value="■  report node" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontColor=#d0f0e0;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1118" y="928" width="300" height="22" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
